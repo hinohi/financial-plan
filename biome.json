@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/dist", "!**/node_modules", "!**/bun.lock", "!.claude"]
+    "includes": ["**", "!**/dist", "!**/node_modules", "!**/bun.lock", "!.claude", "!src/components/ui"]
   },
   "formatter": {
     "enabled": true,
@@ -44,14 +44,5 @@
       }
     }
   },
-  "overrides": [
-    {
-      "includes": ["src/components/ui/**"],
-      "linter": {
-        "rules": {
-          "recommended": false
-        }
-      }
-    }
-  ]
+  "overrides": []
 }
