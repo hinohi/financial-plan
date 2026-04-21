@@ -1,6 +1,16 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useReducer, useRef } from "react";
 import { emptyPlan } from "@/lib/dsl/plan";
-import type { Account, Expense, Income, Plan, PlanSettings, Snapshot, Ulid } from "@/lib/dsl/types";
+import type {
+  Account,
+  Expense,
+  Income,
+  OneShotEvent,
+  Plan,
+  PlanSettings,
+  Snapshot,
+  Transfer,
+  Ulid,
+} from "@/lib/dsl/types";
 import { loadPlan, savePlan } from "@/lib/storage";
 
 export type PlanAction =
@@ -17,7 +27,13 @@ export type PlanAction =
   | { type: "income/remove"; id: Ulid }
   | { type: "expense/add"; expense: Expense }
   | { type: "expense/update"; id: Ulid; patch: Partial<Omit<Expense, "id">> }
-  | { type: "expense/remove"; id: Ulid };
+  | { type: "expense/remove"; id: Ulid }
+  | { type: "event/add"; event: OneShotEvent }
+  | { type: "event/update"; id: Ulid; patch: Partial<Omit<OneShotEvent, "id">> }
+  | { type: "event/remove"; id: Ulid }
+  | { type: "transfer/add"; transfer: Transfer }
+  | { type: "transfer/update"; id: Ulid; patch: Partial<Omit<Transfer, "id">> }
+  | { type: "transfer/remove"; id: Ulid };
 
 function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<T>): T[] {
   return list.map((item) => (item.id === id ? { ...item, ...patch } : item));
@@ -44,6 +60,8 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
         snapshots: state.snapshots.filter((s) => s.accountId !== action.id),
         incomes: state.incomes.filter((i) => i.accountId !== action.id),
         expenses: state.expenses.filter((e) => e.accountId !== action.id),
+        events: state.events.filter((e) => e.accountId !== action.id),
+        transfers: state.transfers.filter((t) => t.fromAccountId !== action.id && t.toAccountId !== action.id),
       };
     case "snapshot/add":
       return { ...state, snapshots: [...state.snapshots, action.snapshot] };
@@ -63,6 +81,18 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
       return { ...state, expenses: updateItem(state.expenses, action.id, action.patch) };
     case "expense/remove":
       return { ...state, expenses: removeItem(state.expenses, action.id) };
+    case "event/add":
+      return { ...state, events: [...state.events, action.event] };
+    case "event/update":
+      return { ...state, events: updateItem(state.events, action.id, action.patch) };
+    case "event/remove":
+      return { ...state, events: removeItem(state.events, action.id) };
+    case "transfer/add":
+      return { ...state, transfers: [...state.transfers, action.transfer] };
+    case "transfer/update":
+      return { ...state, transfers: updateItem(state.transfers, action.id, action.patch) };
+    case "transfer/remove":
+      return { ...state, transfers: removeItem(state.transfers, action.id) };
   }
 }
 

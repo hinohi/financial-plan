@@ -1,8 +1,10 @@
 import { AccountsCard } from "@/components/accounts-card";
 import { BalanceChart } from "@/components/balance-chart";
+import { EventsCard } from "@/components/events-card";
 import { FlowsCard } from "@/components/flows-card";
 import { SettingsCard } from "@/components/settings-card";
 import { SnapshotsCard } from "@/components/snapshots-card";
+import { TransfersCard } from "@/components/transfers-card";
 import { PlanProvider } from "@/state/plan-store";
 import "./index.css";
 
@@ -20,6 +22,8 @@ export function App() {
         <SnapshotsCard />
         <FlowsCard kind="income" />
         <FlowsCard kind="expense" />
+        <EventsCard />
+        <TransfersCard />
       </div>
     </PlanProvider>
   );

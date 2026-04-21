@@ -15,5 +15,7 @@ export function emptyPlan(now: Date = new Date()): Plan {
     snapshots: [],
     incomes: [],
     expenses: [],
+    events: [],
+    transfers: [],
   };
 }

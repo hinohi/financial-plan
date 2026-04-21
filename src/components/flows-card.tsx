@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { SegmentList } from "@/components/segment-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { newId } from "@/lib/dsl/id";
 import { isValidYearMonth } from "@/lib/dsl/month";
-import type { Expense, Income, YearMonth } from "@/lib/dsl/types";
+import type { Expense, FlowSegment, Income, Ulid, YearMonth } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { type PlanAction, usePlan } from "@/state/plan-store";
 
@@ -16,33 +17,47 @@ type FlowsCardProps = {
   kind: FlowKind;
 };
 
-const CONFIG = {
+type Flow = Income | Expense;
+
+type FlowConfig = {
+  title: string;
+  description: string;
+  placeholderLabel: string;
+  addAction: (flow: Flow) => PlanAction;
+  updateAction: (id: Ulid, patch: Partial<Omit<Flow, "id">>) => PlanAction;
+  removeAction: (id: Ulid) => PlanAction;
+};
+
+const CONFIG: Record<FlowKind, FlowConfig> = {
   income: {
     title: "収入",
     description: "入金先の口座へ毎月加算される",
     placeholderLabel: "給与",
-    addAction: (flow: Income): PlanAction => ({ type: "income/add", income: flow }),
-    removeAction: (id: string): PlanAction => ({ type: "income/remove", id }),
+    addAction: (flow) => ({ type: "income/add", income: flow as Income }),
+    updateAction: (id, patch) => ({ type: "income/update", id, patch: patch as Partial<Omit<Income, "id">> }),
+    removeAction: (id) => ({ type: "income/remove", id }),
   },
   expense: {
     title: "支出",
     description: "出金元の口座から毎月減算される",
     placeholderLabel: "家賃",
-    addAction: (flow: Expense): PlanAction => ({ type: "expense/add", expense: flow }),
-    removeAction: (id: string): PlanAction => ({ type: "expense/remove", id }),
+    addAction: (flow) => ({ type: "expense/add", expense: flow as Expense }),
+    updateAction: (id, patch) => ({ type: "expense/update", id, patch: patch as Partial<Omit<Expense, "id">> }),
+    removeAction: (id) => ({ type: "expense/remove", id }),
   },
-} as const;
+};
 
 export function FlowsCard({ kind }: FlowsCardProps) {
   const { plan, dispatch } = usePlan();
   const config = CONFIG[kind];
-  const flows = kind === "income" ? plan.incomes : plan.expenses;
+  const flows: Flow[] = kind === "income" ? plan.incomes : plan.expenses;
 
   const [label, setLabel] = useState("");
   const [accountId, setAccountId] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [startMonth, setStartMonth] = useState<string>(plan.settings.planStartMonth);
   const [endMonth, setEndMonth] = useState<string>("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const accountLabel = useMemo(() => {
     const map = new Map<string, string>();
@@ -55,19 +70,17 @@ export function FlowsCard({ kind }: FlowsCardProps) {
     accountId !== "" &&
     amount !== "" &&
     !Number.isNaN(Number(amount)) &&
-    Number(amount) >= 0 &&
     isValidYearMonth(startMonth) &&
     (endMonth === "" || isValidYearMonth(endMonth));
 
   const handleAdd = () => {
     if (!canAdd) return;
-    const segment = {
+    const segment: FlowSegment = {
       startMonth: startMonth as YearMonth,
       endMonth: endMonth === "" ? undefined : (endMonth as YearMonth),
       amount: Number(amount),
     };
-    const base = { id: newId(), label: label.trim(), accountId, segments: [segment] };
-    dispatch(config.addAction(base));
+    dispatch(config.addAction({ id: newId(), label: label.trim(), accountId, segments: [segment] }));
     setLabel("");
     setAmount("");
     setEndMonth("");
@@ -141,30 +154,56 @@ export function FlowsCard({ kind }: FlowsCardProps) {
         ) : (
           <ul className="divide-y rounded-md border">
             {flows.map((flow) => {
-              const seg = flow.segments[0];
+              const head = flow.segments[0];
+              const extra = flow.segments.length - 1;
+              const isExpanded = expandedId === flow.id;
               return (
-                <li key={flow.id} className="flex items-center justify-between gap-4 px-4 py-2">
-                  <div className="grid text-sm">
-                    <span className="font-medium">
-                      {flow.label}
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        → {accountLabel.get(flow.accountId) ?? "不明"}
+                <li key={flow.id} className="grid gap-3 px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="grid text-sm">
+                      <span className="font-medium">
+                        {flow.label}
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          → {accountLabel.get(flow.accountId) ?? "不明"}
+                        </span>
                       </span>
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {seg ? (
-                        <>
-                          {seg.startMonth} 〜 {seg.endMonth ?? "計画終了"} / 月額{" "}
-                          <span className="font-mono tabular-nums">{formatYen(seg.amount)}</span>
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </span>
+                      <span className="text-xs text-muted-foreground">
+                        {head ? (
+                          <>
+                            {head.startMonth} 〜 {head.endMonth ?? "計画終了"} / 月額{" "}
+                            <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
+                            {head.raise ? <span className="ml-1">(昇給あり)</span> : null}
+                            {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : flow.id)}>
+                        {isExpanded ? "閉じる" : "編集"}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => dispatch(config.removeAction(flow.id))}>
+                        削除
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => dispatch(config.removeAction(flow.id))}>
-                    削除
-                  </Button>
+                  {isExpanded ? (
+                    <FlowEditor
+                      flow={flow}
+                      planStart={plan.settings.planStartMonth}
+                      onLabelChange={(value) =>
+                        dispatch(config.updateAction(flow.id, { label: value } as Partial<Omit<Flow, "id">>))
+                      }
+                      onAccountChange={(value) =>
+                        dispatch(config.updateAction(flow.id, { accountId: value } as Partial<Omit<Flow, "id">>))
+                      }
+                      onSegmentsChange={(next) =>
+                        dispatch(config.updateAction(flow.id, { segments: next } as Partial<Omit<Flow, "id">>))
+                      }
+                    />
+                  ) : null}
                 </li>
               );
             })}
@@ -172,5 +211,48 @@ export function FlowsCard({ kind }: FlowsCardProps) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+type FlowEditorProps = {
+  flow: Flow;
+  planStart: YearMonth;
+  onLabelChange: (value: string) => void;
+  onAccountChange: (value: string) => void;
+  onSegmentsChange: (next: FlowSegment[]) => void;
+};
+
+function FlowEditor({ flow, planStart, onLabelChange, onAccountChange, onSegmentsChange }: FlowEditorProps) {
+  const { plan } = usePlan();
+  return (
+    <div className="grid gap-4 rounded-md border border-dashed bg-muted/10 p-4">
+      <div className="grid gap-3 md:grid-cols-2 md:items-end">
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${flow.id}-label`}>ラベル</Label>
+          <Input id={`${flow.id}-label`} value={flow.label} onChange={(e) => onLabelChange(e.target.value)} />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${flow.id}-account`}>口座</Label>
+          <Select value={flow.accountId} onValueChange={onAccountChange}>
+            <SelectTrigger id={`${flow.id}-account`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {plan.accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <SegmentList
+        idPrefix={`${flow.id}-seg`}
+        segments={flow.segments}
+        planStart={planStart}
+        onChange={onSegmentsChange}
+      />
+    </div>
   );
 }

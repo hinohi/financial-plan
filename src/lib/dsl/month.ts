@@ -20,6 +20,12 @@ export function compareYearMonth(a: YearMonth, b: YearMonth): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+export function monthDiff(from: YearMonth, to: YearMonth): number {
+  const a = parseYearMonth(from);
+  const b = parseYearMonth(to);
+  return (b.year - a.year) * 12 + (b.month - a.month);
+}
+
 export function maxYearMonth(a: YearMonth, b: YearMonth): YearMonth {
   return compareYearMonth(a, b) >= 0 ? a : b;
 }

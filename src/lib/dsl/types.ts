@@ -26,10 +26,24 @@ export type Snapshot = {
   balance: number;
 };
 
+export type FlowRaiseKind = "fixed" | "rate";
+
+export const FLOW_RAISE_KIND_LABEL: Record<FlowRaiseKind, string> = {
+  fixed: "固定額",
+  rate: "固定率",
+};
+
+export type FlowRaise = {
+  kind: FlowRaiseKind;
+  value: number;
+  everyMonths: number;
+};
+
 export type FlowSegment = {
   startMonth: YearMonth;
   endMonth?: YearMonth;
   amount: number;
+  raise?: FlowRaise;
 };
 
 export type Income = {
@@ -43,6 +57,22 @@ export type Expense = {
   id: Ulid;
   label: string;
   accountId: Ulid;
+  segments: FlowSegment[];
+};
+
+export type OneShotEvent = {
+  id: Ulid;
+  label: string;
+  accountId: Ulid;
+  month: YearMonth;
+  amount: number;
+};
+
+export type Transfer = {
+  id: Ulid;
+  label: string;
+  fromAccountId: Ulid;
+  toAccountId: Ulid;
   segments: FlowSegment[];
 };
 
@@ -61,9 +91,11 @@ export type Plan = {
   snapshots: Snapshot[];
   incomes: Income[];
   expenses: Expense[];
+  events: OneShotEvent[];
+  transfers: Transfer[];
 };
 
-export type MonthlyEntrySourceKind = "income" | "expense" | "snapshot";
+export type MonthlyEntrySourceKind = "income" | "expense" | "event" | "transfer" | "snapshot";
 
 export type MonthlyEntry = {
   month: YearMonth;

@@ -15,6 +15,8 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
     snapshots: [],
     incomes: [],
     expenses: [],
+    events: [],
+    transfers: [],
     ...overrides,
   };
 }
@@ -96,6 +98,40 @@ describe("aggregate monthly", () => {
     expect(view.points[0]?.total).toBe(300);
     expect(view.points[0]?.byAccount).toEqual({ a1: 100, a2: 200 });
     expect(view.points[2]?.total).toBe(300);
+  });
+
+  test("Transfer は合計残高を変えず、口座別残高のみ動かす", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a2", label: "invest", kind: "investment" },
+      ],
+      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 1000 }],
+      transfers: [
+        {
+          id: "t1",
+          label: "積立",
+          fromAccountId: "a1",
+          toAccountId: "a2",
+          segments: [{ startMonth: "2026-02", endMonth: "2026-03", amount: 100 }],
+        },
+      ],
+    });
+    const view = aggregate(plan, interpret(plan), { period: "monthly" });
+    expect(view.points.map((p) => [p.period, p.total, p.byAccount])).toEqual([
+      ["2026-01", 1000, { a1: 1000, a2: 0 }],
+      ["2026-02", 1000, { a1: 900, a2: 100 }],
+      ["2026-03", 1000, { a1: 800, a2: 200 }],
+    ]);
+  });
+
+  test("OneShotEvent は指定月の残高にだけ作用する", () => {
+    const plan = basePlan({
+      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 1000 }],
+      events: [{ id: "ev1", label: "ボーナス", accountId: "a1", month: "2026-02", amount: 500 }],
+    });
+    const view = aggregate(plan, interpret(plan), { period: "monthly" });
+    expect(view.points.map((p) => p.total)).toEqual([1000, 1500, 1500]);
   });
 
   test("口座が無ければ total は 0", () => {

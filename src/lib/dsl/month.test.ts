@@ -7,6 +7,7 @@ import {
   iterateMonths,
   maxYearMonth,
   minYearMonth,
+  monthDiff,
   parseYearMonth,
   toYearMonth,
 } from "./month";
@@ -64,6 +65,22 @@ describe("compareYearMonth", () => {
     expect(compareYearMonth("2026-04", "2026-05")).toBeLessThan(0);
     expect(compareYearMonth("2026-05", "2026-04")).toBeGreaterThan(0);
     expect(compareYearMonth("2025-12", "2026-01")).toBeLessThan(0);
+  });
+});
+
+describe("monthDiff", () => {
+  test("同月は 0", () => {
+    expect(monthDiff("2026-04", "2026-04")).toBe(0);
+  });
+
+  test("順方向は正、逆方向は負", () => {
+    expect(monthDiff("2026-04", "2026-06")).toBe(2);
+    expect(monthDiff("2026-06", "2026-04")).toBe(-2);
+  });
+
+  test("年を跨ぐ", () => {
+    expect(monthDiff("2026-04", "2027-04")).toBe(12);
+    expect(monthDiff("2026-11", "2027-02")).toBe(3);
   });
 });
 

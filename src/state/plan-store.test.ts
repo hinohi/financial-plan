@@ -40,6 +40,19 @@ function seed(): Plan {
         segments: [{ startMonth: "2026-01", amount: 10 }],
       },
     ],
+    events: [
+      { id: "ev1", label: "ボーナス", accountId: "a1", month: "2026-06", amount: 500 },
+      { id: "ev2", label: "住宅購入", accountId: "a2", month: "2027-04", amount: -1000 },
+    ],
+    transfers: [
+      {
+        id: "t1",
+        label: "積立",
+        fromAccountId: "a1",
+        toAccountId: "a2",
+        segments: [{ startMonth: "2026-01", amount: 50 }],
+      },
+    ],
   };
 }
 
@@ -53,6 +66,8 @@ describe("planReducer", () => {
       snapshots: [],
       incomes: [],
       expenses: [],
+      events: [],
+      transfers: [],
     };
     expect(planReducer(state, { type: "plan/replace", plan: next })).toBe(next);
   });
@@ -82,13 +97,21 @@ describe("planReducer", () => {
     expect(next.accounts[1]?.kind).toBe("investment");
   });
 
-  test("account/remove は口座に紐づく snapshot・income・expense をまとめて削除する", () => {
+  test("account/remove は口座に紐づく snapshot・income・expense・event・transfer をまとめて削除する", () => {
     const state = seed();
     const next = planReducer(state, { type: "account/remove", id: "a1" });
     expect(next.accounts.map((a) => a.id)).toEqual(["a2"]);
     expect(next.snapshots.map((s) => s.id)).toEqual(["s2"]);
     expect(next.incomes).toEqual([]);
     expect(next.expenses.map((e) => e.id)).toEqual(["e2"]);
+    expect(next.events.map((e) => e.id)).toEqual(["ev2"]);
+    expect(next.transfers).toEqual([]);
+  });
+
+  test("account/remove は transfer の to 側に一致しても削除する", () => {
+    const state = seed();
+    const next = planReducer(state, { type: "account/remove", id: "a2" });
+    expect(next.transfers).toEqual([]);
   });
 
   test("snapshot/add / update / remove", () => {
@@ -142,6 +165,40 @@ describe("planReducer", () => {
 
     const removed = planReducer(updated, { type: "expense/remove", id: "e3" });
     expect(removed.expenses.map((e) => e.id)).toEqual(["e1", "e2"]);
+  });
+
+  test("event/add / update / remove", () => {
+    const added = planReducer(seed(), {
+      type: "event/add",
+      event: { id: "ev3", label: "車検", accountId: "a1", month: "2027-07", amount: -150 },
+    });
+    expect(added.events).toHaveLength(3);
+
+    const updated = planReducer(added, { type: "event/update", id: "ev3", patch: { amount: -200 } });
+    expect(updated.events.find((e) => e.id === "ev3")?.amount).toBe(-200);
+
+    const removed = planReducer(updated, { type: "event/remove", id: "ev3" });
+    expect(removed.events.map((e) => e.id)).toEqual(["ev1", "ev2"]);
+  });
+
+  test("transfer/add / update / remove", () => {
+    const added = planReducer(seed(), {
+      type: "transfer/add",
+      transfer: {
+        id: "t2",
+        label: "賞与積立",
+        fromAccountId: "a1",
+        toAccountId: "a2",
+        segments: [{ startMonth: "2026-06", amount: 200 }],
+      },
+    });
+    expect(added.transfers).toHaveLength(2);
+
+    const updated = planReducer(added, { type: "transfer/update", id: "t2", patch: { label: "ボーナス積立" } });
+    expect(updated.transfers.find((t) => t.id === "t2")?.label).toBe("ボーナス積立");
+
+    const removed = planReducer(updated, { type: "transfer/remove", id: "t2" });
+    expect(removed.transfers.map((t) => t.id)).toEqual(["t1"]);
   });
 
   test("元の state は変更されない（immutable）", () => {
