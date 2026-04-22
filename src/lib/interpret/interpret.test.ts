@@ -203,6 +203,91 @@ describe("interpret", () => {
     expect(sample("2028-01")).toBeCloseTo(1210);
   });
 
+  test("intervalMonths=12 なら 1 年に 1 回だけ発生する", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2028-12" },
+      incomes: [
+        {
+          id: "i1",
+          label: "ボーナス",
+          accountId: "a1",
+          segments: [{ startMonth: "2026-06", amount: 500, intervalMonths: 12 }],
+        },
+      ],
+    });
+    const months = interpret(plan)
+      .filter((e) => e.sourceKind === "income")
+      .map((e) => e.month);
+    expect(months).toEqual(["2026-06", "2027-06", "2028-06"]);
+  });
+
+  test("intervalMonths=6 なら半年ごとに発生する", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2027-12" },
+      expenses: [
+        {
+          id: "e1",
+          label: "保険料",
+          accountId: "a1",
+          segments: [{ startMonth: "2026-02", amount: 100, intervalMonths: 6 }],
+        },
+      ],
+    });
+    const months = interpret(plan)
+      .filter((e) => e.sourceKind === "expense")
+      .map((e) => e.month);
+    expect(months).toEqual(["2026-02", "2026-08", "2027-02", "2027-08"]);
+  });
+
+  test("intervalMonths=1 または未指定なら毎月発生 (デフォルト互換)", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
+      incomes: [
+        {
+          id: "i1",
+          label: "給与",
+          accountId: "a1",
+          segments: [{ startMonth: "2026-01", amount: 100 }],
+        },
+        {
+          id: "i2",
+          label: "給与2",
+          accountId: "a1",
+          segments: [{ startMonth: "2026-01", amount: 50, intervalMonths: 1 }],
+        },
+      ],
+    });
+    const counts = interpret(plan).filter((e) => e.sourceKind === "income").length;
+    expect(counts).toBe(6);
+  });
+
+  test("intervalMonths と raise は独立に機能する (12 ヶ月ごと + 12 ヶ月ごと昇給)", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2028-12" },
+      incomes: [
+        {
+          id: "i1",
+          label: "ボーナス",
+          accountId: "a1",
+          segments: [
+            {
+              startMonth: "2026-06",
+              amount: 1000,
+              intervalMonths: 12,
+              raise: { kind: "fixed", value: 100, everyMonths: 12 },
+            },
+          ],
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "income");
+    expect(entries.map((e) => [e.month, e.amount])).toEqual([
+      ["2026-06", 1000],
+      ["2027-06", 1100],
+      ["2028-06", 1200],
+    ]);
+  });
+
   test("everyMonths が 0 以下なら raise は適用されない (防御)", () => {
     expect(
       computeSegmentAmount(
@@ -269,6 +354,33 @@ describe("interpret", () => {
       sourceKind: "transfer",
       amount: -500,
     });
+  });
+
+  test("Transfer も intervalMonths に従って発生月が間引かれる", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a2", label: "invest", kind: "investment" },
+      ],
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2027-12" },
+      transfers: [
+        {
+          id: "t1",
+          label: "NISA",
+          fromAccountId: "a1",
+          toAccountId: "a2",
+          segments: [{ startMonth: "2026-03", amount: 100_000, intervalMonths: 12 }],
+        },
+      ],
+    });
+    const months = [
+      ...new Set(
+        interpret(plan)
+          .filter((e) => e.sourceKind === "transfer")
+          .map((e) => e.month),
+      ),
+    ];
+    expect(months).toEqual(["2026-03", "2027-03"]);
   });
 
   test("Transfer の from===to は無視される", () => {

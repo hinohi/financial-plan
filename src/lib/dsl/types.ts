@@ -70,6 +70,7 @@ export type FlowSegment = {
   startMonth: YearMonth;
   endMonth?: YearMonth;
   amount: number;
+  intervalMonths?: number;
   raise?: FlowRaise;
 };
 

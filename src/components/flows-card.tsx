@@ -192,7 +192,8 @@ export function FlowsCard({ kind }: FlowsCardProps) {
                       <span className="text-xs text-muted-foreground">
                         {head ? (
                           <>
-                            {head.startMonth} 〜 {head.endMonth ?? "計画終了"} / 月額{" "}
+                            {head.startMonth} 〜 {head.endMonth ?? "計画終了"} /{" "}
+                            {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
                             <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
                             {head.raise ? <span className="ml-1">(昇給あり)</span> : null}
                             {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
@@ -291,6 +292,7 @@ function FlowEditor({
         idPrefix={`${flow.id}-seg`}
         segments={flow.segments}
         planStart={planStart}
+        showInterval
         onChange={onSegmentsChange}
       />
     </div>

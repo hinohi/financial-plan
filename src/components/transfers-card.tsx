@@ -157,9 +157,10 @@ export function TransfersCard() {
                       <span className="text-xs text-muted-foreground">
                         {head ? (
                           <>
-                            {head.startMonth} 〜 {head.endMonth ?? "計画終了"} / 月額{" "}
+                            {head.startMonth} 〜 {head.endMonth ?? "計画終了"} /{" "}
+                            {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
                             <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
-                            {head.raise ? <span className="ml-1">(昇給あり)</span> : null}
+                            {head.raise ? <span className="ml-1">(増減あり)</span> : null}
                             {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
                           </>
                         ) : (
@@ -253,6 +254,7 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
         idPrefix={`${transfer.id}-seg`}
         segments={transfer.segments}
         planStart={planStart}
+        showInterval
         onChange={(segments) => update({ segments })}
       />
     </div>

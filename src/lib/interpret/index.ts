@@ -31,7 +31,12 @@ function emitSegment(
   const start = maxYearMonth(segment.startMonth, planStart);
   const end = minYearMonth(segment.endMonth ?? planEnd, planEnd);
   if (compareYearMonth(start, end) > 0) return;
+  const interval = segment.intervalMonths && segment.intervalMonths > 0 ? segment.intervalMonths : 1;
   for (const month of iterateMonths(start, end)) {
+    if (interval > 1) {
+      const delta = monthDiff(segment.startMonth, month);
+      if (delta < 0 || delta % interval !== 0) continue;
+    }
     out.push({
       month,
       accountId,
@@ -55,7 +60,12 @@ function emitTransferSegment(
   const start = maxYearMonth(segment.startMonth, planStart);
   const end = minYearMonth(segment.endMonth ?? planEnd, planEnd);
   if (compareYearMonth(start, end) > 0) return;
+  const interval = segment.intervalMonths && segment.intervalMonths > 0 ? segment.intervalMonths : 1;
   for (const month of iterateMonths(start, end)) {
+    if (interval > 1) {
+      const delta = monthDiff(segment.startMonth, month);
+      if (delta < 0 || delta % interval !== 0) continue;
+    }
     const amount = computeSegmentAmount(segment, month);
     out.push({ month, accountId: fromAccountId, sourceId, sourceKind: "transfer", amount: -amount });
     out.push({ month, accountId: toAccountId, sourceId, sourceKind: "transfer", amount });

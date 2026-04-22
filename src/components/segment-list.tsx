@@ -9,10 +9,11 @@ type SegmentListProps = {
   idPrefix: string;
   segments: FlowSegment[];
   planStart: YearMonth;
+  showInterval?: boolean;
   onChange: (next: FlowSegment[]) => void;
 };
 
-export function SegmentList({ idPrefix, segments, planStart, onChange }: SegmentListProps) {
+export function SegmentList({ idPrefix, segments, planStart, showInterval, onChange }: SegmentListProps) {
   const updateSegment = (index: number, patch: Partial<FlowSegment>) => {
     onChange(segments.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   };
@@ -36,6 +37,7 @@ export function SegmentList({ idPrefix, segments, planStart, onChange }: Segment
             key={index}
             idPrefix={`${idPrefix}-${index}`}
             segment={segment}
+            showInterval={showInterval}
             onChange={(patch) => updateSegment(index, patch)}
             onRemove={segments.length > 1 ? () => removeSegment(index) : undefined}
           />
@@ -53,11 +55,12 @@ export function SegmentList({ idPrefix, segments, planStart, onChange }: Segment
 type SegmentRowProps = {
   idPrefix: string;
   segment: FlowSegment;
+  showInterval?: boolean;
   onChange: (patch: Partial<FlowSegment>) => void;
   onRemove?: () => void;
 };
 
-function SegmentRow({ idPrefix, segment, onChange, onRemove }: SegmentRowProps) {
+function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: SegmentRowProps) {
   const raise = segment.raise;
 
   const setAmount = (value: string) => {
@@ -109,7 +112,9 @@ function SegmentRow({ idPrefix, segment, onChange, onRemove }: SegmentRowProps) 
           />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor={`${idPrefix}-amount`}>月額 (円)</Label>
+          <Label htmlFor={`${idPrefix}-amount`}>
+            {(segment.intervalMonths ?? 1) > 1 ? "1 回あたりの額 (円)" : "月額 (円)"}
+          </Label>
           <Input
             id={`${idPrefix}-amount`}
             type="number"
@@ -126,6 +131,30 @@ function SegmentRow({ idPrefix, segment, onChange, onRemove }: SegmentRowProps) 
           <span className="text-xs text-muted-foreground">必須</span>
         )}
       </div>
+      {showInterval ? (
+        <div className="grid gap-3 md:grid-cols-[160px_1fr] md:items-end">
+          <div className="grid gap-1.5">
+            <Label htmlFor={`${idPrefix}-interval`}>N ヶ月ごと</Label>
+            <Input
+              id={`${idPrefix}-interval`}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={segment.intervalMonths ?? 1}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (!Number.isInteger(n) || n < 1) return;
+                onChange({ intervalMonths: n === 1 ? undefined : n });
+              }}
+            />
+          </div>
+          <p className="self-center text-xs text-muted-foreground">
+            {(segment.intervalMonths ?? 1) === 1
+              ? "毎月発生 (デフォルト)"
+              : `${segment.intervalMonths} ヶ月ごとに発生 (開始月を基準に ${segment.intervalMonths} ヶ月間隔)`}
+          </p>
+        </div>
+      ) : null}
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"
