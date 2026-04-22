@@ -4,6 +4,7 @@ import { CategoriesCard } from "@/components/categories-card";
 import { EventsCard } from "@/components/events-card";
 import { FlowChart } from "@/components/flow-chart";
 import { FlowsCard } from "@/components/flows-card";
+import { PlansCard } from "@/components/plans-card";
 import { SettingsCard } from "@/components/settings-card";
 import { SnapshotsCard } from "@/components/snapshots-card";
 import { TransfersCard } from "@/components/transfers-card";
@@ -18,6 +19,7 @@ export function App() {
           <h1 className="text-3xl font-bold tracking-tight">FP</h1>
           <p className="text-muted-foreground">ファイナンシャルプランを作成し管理するツール</p>
         </header>
+        <PlansCard />
         <SettingsCard />
         <BalanceChart />
         <FlowChart kind="income" />
