@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Plan, YearStartMonth } from "@/lib/dsl/types";
 import { interpret } from "@/lib/interpret";
-import { aggregate } from "./index";
+import { aggregate, aggregateFlow, UNCATEGORIZED_KEY } from "./index";
 
 function basePlan(overrides: Partial<Plan> = {}): Plan {
   return {
@@ -17,6 +17,7 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
     expenses: [],
     events: [],
     transfers: [],
+    categories: [],
     ...overrides,
   };
 }
@@ -178,5 +179,155 @@ describe("aggregate yearly", () => {
       ["2026年度", 2000],
       ["2027年度", 3000],
     ]);
+  });
+});
+
+describe("aggregateFlow", () => {
+  test("カテゴリ未設定の income は未分類として集計される", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
+      incomes: [
+        {
+          id: "i1",
+          label: "給与",
+          accountId: "a1",
+          segments: [{ startMonth: "2026-01", endMonth: "2026-02", amount: 100 }],
+        },
+      ],
+    });
+    const view = aggregateFlow(plan, interpret(plan), { kind: "income", period: "monthly", group: "leaf" });
+    expect(view.categoryOrder).toEqual([UNCATEGORIZED_KEY]);
+    expect(view.points.map((p) => [p.period, p.byCategory[UNCATEGORIZED_KEY], p.total])).toEqual([
+      ["2026-01", 100, 100],
+      ["2026-02", 100, 100],
+    ]);
+  });
+
+  test("expense はカテゴリ別に正の値として積み上げられる", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
+      expenses: [
+        {
+          id: "e1",
+          label: "家賃",
+          accountId: "a1",
+          categoryId: "c-fixed",
+          segments: [{ startMonth: "2026-01", endMonth: "2026-02", amount: 80 }],
+        },
+        {
+          id: "e2",
+          label: "食費",
+          accountId: "a1",
+          categoryId: "c-food",
+          segments: [{ startMonth: "2026-01", endMonth: "2026-02", amount: 30 }],
+        },
+      ],
+      categories: [
+        { id: "c-fixed", label: "固定費", kind: "expense" },
+        { id: "c-food", label: "食費", kind: "expense" },
+      ],
+    });
+    const view = aggregateFlow(plan, interpret(plan), { kind: "expense", period: "monthly", group: "leaf" });
+    expect(view.categoryOrder).toEqual(["c-fixed", "c-food"]);
+    expect(view.points[0]?.byCategory).toEqual({ "c-fixed": 80, "c-food": 30 });
+    expect(view.points[0]?.total).toBe(110);
+  });
+
+  test("group=top は子カテゴリを親にロールアップする", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-01" },
+      expenses: [
+        {
+          id: "e1",
+          label: "外食",
+          accountId: "a1",
+          categoryId: "c-eat-out",
+          segments: [{ startMonth: "2026-01", endMonth: "2026-01", amount: 40 }],
+        },
+        {
+          id: "e2",
+          label: "自炊",
+          accountId: "a1",
+          categoryId: "c-groceries",
+          segments: [{ startMonth: "2026-01", endMonth: "2026-01", amount: 30 }],
+        },
+      ],
+      categories: [
+        { id: "c-food", label: "食費", kind: "expense" },
+        { id: "c-eat-out", label: "外食", kind: "expense", parentId: "c-food" },
+        { id: "c-groceries", label: "食料品", kind: "expense", parentId: "c-food" },
+      ],
+    });
+    const leaf = aggregateFlow(plan, interpret(plan), { kind: "expense", period: "monthly", group: "leaf" });
+    expect(leaf.categoryOrder).toEqual(["c-eat-out", "c-groceries"]);
+    expect(leaf.points[0]?.byCategory).toEqual({ "c-eat-out": 40, "c-groceries": 30 });
+
+    const top = aggregateFlow(plan, interpret(plan), { kind: "expense", period: "monthly", group: "top" });
+    expect(top.categoryOrder).toEqual(["c-food"]);
+    expect(top.points[0]?.byCategory).toEqual({ "c-food": 70 });
+    expect(top.points[0]?.total).toBe(70);
+  });
+
+  test("events は kind=income/expense 集計に符号に応じて参加する", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
+      events: [
+        { id: "ev1", label: "ボーナス", accountId: "a1", month: "2026-06", amount: 500 },
+        { id: "ev2", label: "住宅", accountId: "a1", month: "2026-02", amount: -300 },
+        { id: "ev3", label: "結婚祝", accountId: "a1", month: "2026-03", amount: 200 },
+      ],
+    });
+    const income = aggregateFlow(plan, interpret(plan), { kind: "income", period: "monthly", group: "leaf" });
+    expect(income.points.map((p) => [p.period, p.total])).toEqual([
+      ["2026-01", 0],
+      ["2026-02", 0],
+      ["2026-03", 200],
+    ]);
+    const expense = aggregateFlow(plan, interpret(plan), { kind: "expense", period: "monthly", group: "leaf" });
+    expect(expense.points.map((p) => [p.period, p.total])).toEqual([
+      ["2026-01", 0],
+      ["2026-02", 300],
+      ["2026-03", 0],
+    ]);
+  });
+
+  test("年次集計は期間ラベルでまとめる", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 4, planStartMonth: "2026-04", planEndMonth: "2028-03" },
+      incomes: [
+        {
+          id: "i1",
+          label: "給与",
+          accountId: "a1",
+          categoryId: "c-salary",
+          segments: [{ startMonth: "2026-04", endMonth: "2028-03", amount: 10 }],
+        },
+      ],
+      categories: [{ id: "c-salary", label: "給与", kind: "income" }],
+    });
+    const view = aggregateFlow(plan, interpret(plan), { kind: "income", period: "yearly", group: "leaf" });
+    expect(view.points.map((p) => [p.period, p.total])).toEqual([
+      ["2026年度", 120],
+      ["2027年度", 120],
+    ]);
+  });
+
+  test("kind 不一致の categoryId は未分類扱い", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-01" },
+      incomes: [
+        {
+          id: "i1",
+          label: "給与",
+          accountId: "a1",
+          categoryId: "c-expense",
+          segments: [{ startMonth: "2026-01", endMonth: "2026-01", amount: 100 }],
+        },
+      ],
+      categories: [{ id: "c-expense", label: "生活費", kind: "expense" }],
+    });
+    const view = aggregateFlow(plan, interpret(plan), { kind: "income", period: "monthly", group: "leaf" });
+    expect(view.categoryOrder).toEqual([UNCATEGORIZED_KEY]);
+    expect(view.points[0]?.byCategory[UNCATEGORIZED_KEY]).toBe(100);
   });
 });

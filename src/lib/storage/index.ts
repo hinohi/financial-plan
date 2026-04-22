@@ -19,6 +19,7 @@ export function hydratePlan(raw: unknown): Plan | null {
     expenses: p.expenses ?? [],
     events: p.events ?? [],
     transfers: p.transfers ?? [],
+    categories: p.categories ?? [],
   };
 }
 

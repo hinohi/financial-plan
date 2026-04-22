@@ -12,7 +12,7 @@ describe("hydratePlan", () => {
     expect(hydratePlan({ accounts: [] })).toBeNull();
   });
 
-  test("Phase 1 時点の Plan は events/transfers を空補完して読める", () => {
+  test("Phase 1 時点の Plan は events/transfers/categories を空補完して読める", () => {
     const raw = {
       schemaVersion: 1,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
@@ -25,6 +25,7 @@ describe("hydratePlan", () => {
     expect(plan).not.toBeNull();
     expect(plan?.events).toEqual([]);
     expect(plan?.transfers).toEqual([]);
+    expect(plan?.categories).toEqual([]);
     expect(plan?.accounts).toEqual([{ id: "a1", label: "cash", kind: "cash" }]);
   });
 

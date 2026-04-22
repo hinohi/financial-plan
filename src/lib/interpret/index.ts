@@ -25,6 +25,7 @@ function emitSegment(
   planStart: YearMonth,
   planEnd: YearMonth,
   sign: 1 | -1,
+  categoryId: Ulid | undefined,
   out: MonthlyEntry[],
 ): void {
   const start = maxYearMonth(segment.startMonth, planStart);
@@ -36,6 +37,7 @@ function emitSegment(
       accountId,
       sourceId,
       sourceKind,
+      categoryId,
       amount: computeSegmentAmount(segment, month) * sign,
     });
   }
@@ -77,13 +79,33 @@ export function interpret(plan: Plan): MonthlyEntry[] {
 
   for (const income of plan.incomes) {
     for (const segment of income.segments) {
-      emitSegment(income.accountId, income.id, "income", segment, planStartMonth, planEndMonth, 1, entries);
+      emitSegment(
+        income.accountId,
+        income.id,
+        "income",
+        segment,
+        planStartMonth,
+        planEndMonth,
+        1,
+        income.categoryId,
+        entries,
+      );
     }
   }
 
   for (const expense of plan.expenses) {
     for (const segment of expense.segments) {
-      emitSegment(expense.accountId, expense.id, "expense", segment, planStartMonth, planEndMonth, -1, entries);
+      emitSegment(
+        expense.accountId,
+        expense.id,
+        "expense",
+        segment,
+        planStartMonth,
+        planEndMonth,
+        -1,
+        expense.categoryId,
+        entries,
+      );
     }
   }
 
@@ -94,6 +116,7 @@ export function interpret(plan: Plan): MonthlyEntry[] {
       accountId: event.accountId,
       sourceId: event.id,
       sourceKind: "event",
+      categoryId: event.categoryId,
       amount: event.amount,
     });
   }

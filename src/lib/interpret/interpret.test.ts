@@ -16,6 +16,7 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
     expenses: [],
     events: [],
     transfers: [],
+    categories: [],
     ...overrides,
   };
 }

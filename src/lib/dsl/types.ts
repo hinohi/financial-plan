@@ -50,6 +50,7 @@ export type Income = {
   id: Ulid;
   label: string;
   accountId: Ulid;
+  categoryId?: Ulid;
   segments: FlowSegment[];
 };
 
@@ -57,6 +58,7 @@ export type Expense = {
   id: Ulid;
   label: string;
   accountId: Ulid;
+  categoryId?: Ulid;
   segments: FlowSegment[];
 };
 
@@ -64,8 +66,26 @@ export type OneShotEvent = {
   id: Ulid;
   label: string;
   accountId: Ulid;
+  categoryId?: Ulid;
   month: YearMonth;
   amount: number;
+};
+
+export type CategoryKind = "income" | "expense" | "event";
+
+export const CATEGORY_KINDS: CategoryKind[] = ["income", "expense", "event"];
+
+export const CATEGORY_KIND_LABEL: Record<CategoryKind, string> = {
+  income: "収入",
+  expense: "支出",
+  event: "イベント",
+};
+
+export type Category = {
+  id: Ulid;
+  label: string;
+  kind: CategoryKind;
+  parentId?: Ulid;
 };
 
 export type Transfer = {
@@ -93,6 +113,7 @@ export type Plan = {
   expenses: Expense[];
   events: OneShotEvent[];
   transfers: Transfer[];
+  categories: Category[];
 };
 
 export type MonthlyEntrySourceKind = "income" | "expense" | "event" | "transfer" | "snapshot";
@@ -102,5 +123,6 @@ export type MonthlyEntry = {
   accountId: Ulid;
   sourceId: Ulid;
   sourceKind: MonthlyEntrySourceKind;
+  categoryId?: Ulid;
   amount: number;
 };

@@ -1,5 +1,5 @@
 import { iterateMonths, parseYearMonth } from "@/lib/dsl/month";
-import type { MonthlyEntry, Plan, Ulid, YearMonth, YearStartMonth } from "@/lib/dsl/types";
+import type { Category, CategoryKind, MonthlyEntry, Plan, Ulid, YearMonth, YearStartMonth } from "@/lib/dsl/types";
 
 export type AggregatePeriod = "monthly" | "yearly";
 
@@ -13,6 +13,25 @@ export type BalancePoint = {
 export type ViewData = {
   period: AggregatePeriod;
   points: BalancePoint[];
+};
+
+export const UNCATEGORIZED_KEY = "__uncategorized__";
+
+export type CategoryGroup = "leaf" | "top";
+
+export type FlowPoint = {
+  period: string;
+  month: YearMonth;
+  total: number;
+  byCategory: Record<string, number>;
+};
+
+export type FlowViewData = {
+  kind: CategoryKind;
+  period: AggregatePeriod;
+  group: CategoryGroup;
+  points: FlowPoint[];
+  categoryOrder: string[];
 };
 
 type PerMonthPerAccount = Map<YearMonth, Map<Ulid, { snapshot?: number; flow: number }>>;
@@ -89,4 +108,93 @@ export function aggregate(plan: Plan, entries: MonthlyEntry[], options: { period
     return { period: "monthly", points: monthly };
   }
   return { period: "yearly", points: toYearly(monthly, plan.settings.yearStartMonth) };
+}
+
+function topAncestor(categoryId: Ulid, byId: Map<Ulid, Category>): Ulid {
+  const seen = new Set<Ulid>();
+  let cur: Ulid = categoryId;
+  while (true) {
+    if (seen.has(cur)) return cur;
+    seen.add(cur);
+    const c = byId.get(cur);
+    if (!c?.parentId) return cur;
+    cur = c.parentId;
+  }
+}
+
+function resolveCategoryKey(
+  entry: MonthlyEntry,
+  kind: CategoryKind,
+  byId: Map<Ulid, Category>,
+  group: CategoryGroup,
+): string | null {
+  const categoryId = entry.categoryId;
+  if (!categoryId) return UNCATEGORIZED_KEY;
+  const category = byId.get(categoryId);
+  if (!category || category.kind !== kind) return UNCATEGORIZED_KEY;
+  if (group === "leaf") return categoryId;
+  return topAncestor(categoryId, byId);
+}
+
+function matchesKind(entry: MonthlyEntry, kind: CategoryKind): boolean {
+  if (kind === "income") return entry.sourceKind === "income" || (entry.sourceKind === "event" && entry.amount > 0);
+  if (kind === "expense") return entry.sourceKind === "expense" || (entry.sourceKind === "event" && entry.amount < 0);
+  return entry.sourceKind === "event";
+}
+
+function flowPeriodLabel(month: YearMonth, period: AggregatePeriod, yearStartMonth: YearStartMonth): string {
+  if (period === "monthly") return month;
+  return toYearLabel(month, yearStartMonth);
+}
+
+export function aggregateFlow(
+  plan: Plan,
+  entries: MonthlyEntry[],
+  options: { kind: CategoryKind; period: AggregatePeriod; group: CategoryGroup },
+): FlowViewData {
+  const { kind, period, group } = options;
+  const byId = new Map<Ulid, Category>();
+  for (const c of plan.categories) byId.set(c.id, c);
+
+  const periodBuckets = new Map<string, { month: YearMonth; byCategory: Map<string, number> }>();
+  for (const month of iterateMonths(plan.settings.planStartMonth, plan.settings.planEndMonth)) {
+    const periodKey = flowPeriodLabel(month, period, plan.settings.yearStartMonth);
+    if (!periodBuckets.has(periodKey)) periodBuckets.set(periodKey, { month, byCategory: new Map() });
+  }
+
+  const usedKeys = new Set<string>();
+  for (const entry of entries) {
+    if (!matchesKind(entry, kind)) continue;
+    const periodKey = flowPeriodLabel(entry.month, period, plan.settings.yearStartMonth);
+    const bucket = periodBuckets.get(periodKey);
+    if (!bucket) continue;
+    const categoryKey = resolveCategoryKey(entry, kind, byId, group);
+    if (categoryKey === null) continue;
+    const sign = kind === "expense" ? -1 : 1;
+    const value = entry.amount * sign;
+    bucket.byCategory.set(categoryKey, (bucket.byCategory.get(categoryKey) ?? 0) + value);
+    usedKeys.add(categoryKey);
+  }
+
+  const categoryOrder: string[] = [];
+  for (const category of plan.categories) {
+    if (category.kind !== kind) continue;
+    if (group === "top" && category.parentId) continue;
+    if (usedKeys.has(category.id)) categoryOrder.push(category.id);
+  }
+  if (usedKeys.has(UNCATEGORIZED_KEY)) categoryOrder.push(UNCATEGORIZED_KEY);
+
+  const points: FlowPoint[] = [];
+  for (const [periodKey, bucket] of periodBuckets) {
+    const byCategory: Record<string, number> = {};
+    let total = 0;
+    for (const key of categoryOrder) {
+      const v = bucket.byCategory.get(key) ?? 0;
+      byCategory[key] = v;
+      total += v;
+    }
+    points.push({ period: periodKey, month: bucket.month, total, byCategory });
+  }
+
+  return { kind, period, group, points, categoryOrder };
 }

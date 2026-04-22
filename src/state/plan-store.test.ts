@@ -53,6 +53,7 @@ function seed(): Plan {
         segments: [{ startMonth: "2026-01", amount: 50 }],
       },
     ],
+    categories: [],
   };
 }
 
@@ -68,6 +69,7 @@ describe("planReducer", () => {
       expenses: [],
       events: [],
       transfers: [],
+      categories: [],
     };
     expect(planReducer(state, { type: "plan/replace", plan: next })).toBe(next);
   });
@@ -199,6 +201,50 @@ describe("planReducer", () => {
 
     const removed = planReducer(updated, { type: "transfer/remove", id: "t2" });
     expect(removed.transfers.map((t) => t.id)).toEqual(["t1"]);
+  });
+
+  test("category/add / update / remove", () => {
+    const added = planReducer(seed(), {
+      type: "category/add",
+      category: { id: "c1", label: "生活費", kind: "expense" },
+    });
+    expect(added.categories).toHaveLength(1);
+
+    const updated = planReducer(added, { type: "category/update", id: "c1", patch: { label: "暮らし" } });
+    expect(updated.categories[0]?.label).toBe("暮らし");
+
+    const removed = planReducer(updated, { type: "category/remove", id: "c1" });
+    expect(removed.categories).toEqual([]);
+  });
+
+  test("category/remove は参照している income/expense/event の categoryId を外す", () => {
+    const withCat = planReducer(seed(), {
+      type: "category/add",
+      category: { id: "c1", label: "給与", kind: "income" },
+    });
+    const wired: Plan = {
+      ...withCat,
+      incomes: withCat.incomes.map((i) => (i.id === "i1" ? { ...i, categoryId: "c1" } : i)),
+      expenses: withCat.expenses.map((e) => (e.id === "e1" ? { ...e, categoryId: "c1" } : e)),
+      events: withCat.events.map((ev) => (ev.id === "ev1" ? { ...ev, categoryId: "c1" } : ev)),
+    };
+    const next = planReducer(wired, { type: "category/remove", id: "c1" });
+    expect(next.incomes.find((i) => i.id === "i1")?.categoryId).toBeUndefined();
+    expect(next.expenses.find((e) => e.id === "e1")?.categoryId).toBeUndefined();
+    expect(next.events.find((ev) => ev.id === "ev1")?.categoryId).toBeUndefined();
+  });
+
+  test("category/remove は親を失う子カテゴリの parentId を外す", () => {
+    const base = planReducer(seed(), {
+      type: "category/add",
+      category: { id: "c-parent", label: "食費", kind: "expense" },
+    });
+    const withChild = planReducer(base, {
+      type: "category/add",
+      category: { id: "c-child", label: "外食", kind: "expense", parentId: "c-parent" },
+    });
+    const next = planReducer(withChild, { type: "category/remove", id: "c-parent" });
+    expect(next.categories.find((c) => c.id === "c-child")?.parentId).toBeUndefined();
   });
 
   test("元の state は変更されない（immutable）", () => {

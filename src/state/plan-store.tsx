@@ -2,6 +2,7 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo, useReduc
 import { emptyPlan } from "@/lib/dsl/plan";
 import type {
   Account,
+  Category,
   Expense,
   Income,
   OneShotEvent,
@@ -33,7 +34,10 @@ export type PlanAction =
   | { type: "event/remove"; id: Ulid }
   | { type: "transfer/add"; transfer: Transfer }
   | { type: "transfer/update"; id: Ulid; patch: Partial<Omit<Transfer, "id">> }
-  | { type: "transfer/remove"; id: Ulid };
+  | { type: "transfer/remove"; id: Ulid }
+  | { type: "category/add"; category: Category }
+  | { type: "category/update"; id: Ulid; patch: Partial<Omit<Category, "id">> }
+  | { type: "category/remove"; id: Ulid };
 
 function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<T>): T[] {
   return list.map((item) => (item.id === id ? { ...item, ...patch } : item));
@@ -93,6 +97,23 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
       return { ...state, transfers: updateItem(state.transfers, action.id, action.patch) };
     case "transfer/remove":
       return { ...state, transfers: removeItem(state.transfers, action.id) };
+    case "category/add":
+      return { ...state, categories: [...state.categories, action.category] };
+    case "category/update":
+      return { ...state, categories: updateItem(state.categories, action.id, action.patch) };
+    case "category/remove": {
+      const clearRef = <T extends { categoryId?: Ulid }>(items: T[]): T[] =>
+        items.map((item) => (item.categoryId === action.id ? { ...item, categoryId: undefined } : item));
+      return {
+        ...state,
+        categories: state.categories
+          .filter((c) => c.id !== action.id)
+          .map((c) => (c.parentId === action.id ? { ...c, parentId: undefined } : c)),
+        incomes: clearRef(state.incomes),
+        expenses: clearRef(state.expenses),
+        events: clearRef(state.events),
+      };
+    }
   }
 }
 
