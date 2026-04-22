@@ -16,6 +16,16 @@ export type ViewData = {
 };
 
 export const UNCATEGORIZED_KEY = "__uncategorized__";
+export const SYSTEM_INTEREST_KEY = "__interest__";
+export const SYSTEM_DEPRECIATION_KEY = "__depreciation__";
+export const SYSTEM_LOAN_INTEREST_KEY = "__loan_interest__";
+
+export const SYSTEM_CATEGORY_LABEL: Record<string, string> = {
+  [UNCATEGORIZED_KEY]: "未分類",
+  [SYSTEM_INTEREST_KEY]: "運用益",
+  [SYSTEM_DEPRECIATION_KEY]: "減価",
+  [SYSTEM_LOAN_INTEREST_KEY]: "支払利息",
+};
 
 export type CategoryGroup = "leaf" | "top";
 
@@ -128,6 +138,9 @@ function resolveCategoryKey(
   byId: Map<Ulid, Category>,
   group: CategoryGroup,
 ): string | null {
+  if (entry.sourceKind === "interest") return SYSTEM_INTEREST_KEY;
+  if (entry.sourceKind === "depreciation") return SYSTEM_DEPRECIATION_KEY;
+  if (entry.sourceKind === "loan_interest") return SYSTEM_LOAN_INTEREST_KEY;
   const categoryId = entry.categoryId;
   if (!categoryId) return UNCATEGORIZED_KEY;
   const category = byId.get(categoryId);
@@ -137,8 +150,21 @@ function resolveCategoryKey(
 }
 
 function matchesKind(entry: MonthlyEntry, kind: CategoryKind): boolean {
-  if (kind === "income") return entry.sourceKind === "income" || (entry.sourceKind === "event" && entry.amount > 0);
-  if (kind === "expense") return entry.sourceKind === "expense" || (entry.sourceKind === "event" && entry.amount < 0);
+  if (kind === "income") {
+    return (
+      entry.sourceKind === "income" ||
+      entry.sourceKind === "interest" ||
+      (entry.sourceKind === "event" && entry.amount > 0)
+    );
+  }
+  if (kind === "expense") {
+    return (
+      entry.sourceKind === "expense" ||
+      entry.sourceKind === "depreciation" ||
+      entry.sourceKind === "loan_interest" ||
+      (entry.sourceKind === "event" && entry.amount < 0)
+    );
+  }
   return entry.sourceKind === "event";
 }
 
@@ -181,6 +207,10 @@ export function aggregateFlow(
     if (category.kind !== kind) continue;
     if (group === "top" && category.parentId) continue;
     if (usedKeys.has(category.id)) categoryOrder.push(category.id);
+  }
+  const systemKeysOrder = [SYSTEM_INTEREST_KEY, SYSTEM_DEPRECIATION_KEY, SYSTEM_LOAN_INTEREST_KEY];
+  for (const key of systemKeysOrder) {
+    if (usedKeys.has(key)) categoryOrder.push(key);
   }
   if (usedKeys.has(UNCATEGORIZED_KEY)) categoryOrder.push(UNCATEGORIZED_KEY);
 

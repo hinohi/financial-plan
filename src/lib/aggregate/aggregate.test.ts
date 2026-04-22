@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { Plan, YearStartMonth } from "@/lib/dsl/types";
 import { interpret } from "@/lib/interpret";
-import { aggregate, aggregateFlow, UNCATEGORIZED_KEY } from "./index";
+import {
+  aggregate,
+  aggregateFlow,
+  SYSTEM_DEPRECIATION_KEY,
+  SYSTEM_INTEREST_KEY,
+  SYSTEM_LOAN_INTEREST_KEY,
+  UNCATEGORIZED_KEY,
+} from "./index";
 
 function basePlan(overrides: Partial<Plan> = {}): Plan {
   return {
@@ -310,6 +317,50 @@ describe("aggregateFlow", () => {
       ["2026年度", 120],
       ["2027年度", 120],
     ]);
+  });
+
+  test("投資利息は income の運用益カテゴリに計上される", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
+      accounts: [{ id: "inv", label: "投資", kind: "investment", investment: { annualRate: 0.12 } }],
+      snapshots: [{ id: "s1", accountId: "inv", month: "2026-01", balance: 10000 }],
+    });
+    const view = aggregateFlow(plan, interpret(plan), { kind: "income", period: "monthly", group: "leaf" });
+    expect(view.categoryOrder).toContain(SYSTEM_INTEREST_KEY);
+    expect(view.points.some((p) => (p.byCategory[SYSTEM_INTEREST_KEY] ?? 0) > 0)).toBe(true);
+  });
+
+  test("不動産の減価と借入利息は expense に計上される", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
+      accounts: [
+        { id: "cash", label: "現金", kind: "cash" },
+        {
+          id: "prop",
+          label: "家",
+          kind: "property",
+          property: { annualDepreciationRate: 0.05 },
+        },
+        {
+          id: "loan",
+          label: "ローン",
+          kind: "liability",
+          liability: {
+            annualRate: 0.024,
+            scheduleKind: "equal-principal",
+            principal: 1_200_000,
+            termMonths: 12,
+            startMonth: "2026-01",
+            paymentAccountId: "cash",
+          },
+        },
+      ],
+      snapshots: [{ id: "s1", accountId: "prop", month: "2026-01", balance: 10_000_000 }],
+    });
+    const view = aggregateFlow(plan, interpret(plan), { kind: "expense", period: "monthly", group: "leaf" });
+    expect(view.categoryOrder).toContain(SYSTEM_DEPRECIATION_KEY);
+    expect(view.categoryOrder).toContain(SYSTEM_LOAN_INTEREST_KEY);
+    expect(view.points[0]?.byCategory[SYSTEM_LOAN_INTEREST_KEY]).toBeGreaterThan(0);
   });
 
   test("kind 不一致の categoryId は未分類扱い", () => {

@@ -10,7 +10,13 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { type AggregatePeriod, aggregateFlow, type CategoryGroup, UNCATEGORIZED_KEY } from "@/lib/aggregate";
+import {
+  type AggregatePeriod,
+  aggregateFlow,
+  type CategoryGroup,
+  SYSTEM_CATEGORY_LABEL,
+  UNCATEGORIZED_KEY,
+} from "@/lib/aggregate";
 import { categoryPath } from "@/lib/categories";
 import type { Category, CategoryKind, Ulid } from "@/lib/dsl/types";
 import { formatYenCompact } from "@/lib/format";
@@ -62,6 +68,11 @@ export function FlowChart({ kind }: FlowChartProps) {
     viewData.categoryOrder.forEach((key, idx) => {
       if (key === UNCATEGORIZED_KEY) {
         config[key] = { label: "未分類", color: UNCATEGORIZED_COLOR };
+      } else if (SYSTEM_CATEGORY_LABEL[key]) {
+        config[key] = {
+          label: SYSTEM_CATEGORY_LABEL[key],
+          color: CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length] ?? UNCATEGORIZED_COLOR,
+        };
       } else {
         const category = byId.get(key);
         const label = category ? categoryPath(category, byId) : key;

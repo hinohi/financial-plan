@@ -13,10 +13,37 @@ export const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
   liability: "負債",
 };
 
+export type InvestmentParams = {
+  annualRate: number;
+};
+
+export type LiabilityScheduleKind = "equal-payment" | "equal-principal";
+
+export const LIABILITY_SCHEDULE_KIND_LABEL: Record<LiabilityScheduleKind, string> = {
+  "equal-payment": "元利均等",
+  "equal-principal": "元金均等",
+};
+
+export type LiabilityParams = {
+  annualRate: number;
+  scheduleKind: LiabilityScheduleKind;
+  principal: number;
+  termMonths: number;
+  startMonth: YearMonth;
+  paymentAccountId?: Ulid;
+};
+
+export type PropertyParams = {
+  annualDepreciationRate: number;
+};
+
 export type Account = {
   id: Ulid;
   label: string;
   kind: AccountKind;
+  investment?: InvestmentParams;
+  liability?: LiabilityParams;
+  property?: PropertyParams;
 };
 
 export type Snapshot = {
@@ -116,7 +143,16 @@ export type Plan = {
   categories: Category[];
 };
 
-export type MonthlyEntrySourceKind = "income" | "expense" | "event" | "transfer" | "snapshot";
+export type MonthlyEntrySourceKind =
+  | "income"
+  | "expense"
+  | "event"
+  | "transfer"
+  | "snapshot"
+  | "interest"
+  | "depreciation"
+  | "loan_interest"
+  | "loan_principal";
 
 export type MonthlyEntry = {
   month: YearMonth;
