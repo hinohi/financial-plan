@@ -5,10 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { newId } from "@/lib/dsl/id";
 import { compareYearMonth, isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
 import { resolvePlan } from "@/lib/dsl/resolve";
-import type { MonthExpr, YearMonth } from "@/lib/dsl/types";
+import type { MonthExpr, Snapshot, YearMonth } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { usePlan } from "@/state/plan-store";
 
@@ -17,6 +18,7 @@ export function SnapshotsCard() {
   const [accountId, setAccountId] = useState<string>("");
   const [month, setMonth] = useState<MonthExpr | undefined>(undefined);
   const [balance, setBalance] = useState<string>("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const accountLabel = useMemo(() => {
     const map = new Map<string, string>();
@@ -118,25 +120,95 @@ export function SnapshotsCard() {
           <p className="text-sm text-muted-foreground">まだ断面が登録されていません。</p>
         ) : (
           <ul className="divide-y rounded-md border">
-            {sortedSnapshots.map((s) => (
-              <li key={s.id} className="flex items-center justify-between gap-4 px-4 py-2">
-                <div className="grid text-sm">
-                  <span className="font-medium">
-                    {describeMonth(s.month)} / {accountLabel.get(s.accountId) ?? "不明"}
-                    {isPersonAgeRef(s.month) ? (
-                      <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">人物参照</span>
-                    ) : null}
-                  </span>
-                  <span className="font-mono tabular-nums">{formatYen(s.balance)}</span>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "snapshot/remove", id: s.id })}>
-                  削除
-                </Button>
-              </li>
-            ))}
+            {sortedSnapshots.map((s) => {
+              const isExpanded = expandedId === s.id;
+              return (
+                <li key={s.id} className="grid gap-3 px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="grid text-sm">
+                      <span className="font-medium">
+                        {describeMonth(s.month)} / {accountLabel.get(s.accountId) ?? "不明"}
+                        {isPersonAgeRef(s.month) ? (
+                          <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
+                            人物参照
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="font-mono tabular-nums">{formatYen(s.balance)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : s.id)}>
+                        {isExpanded ? "閉じる" : "編集"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => dispatch({ type: "snapshot/remove", id: s.id })}
+                      >
+                        削除
+                      </Button>
+                    </div>
+                  </div>
+                  {isExpanded ? <SnapshotEditor snapshot={s} /> : null}
+                </li>
+              );
+            })}
           </ul>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function SnapshotEditor({ snapshot }: { snapshot: Snapshot }) {
+  const { plan, dispatch } = usePlan();
+
+  const update = (patch: Partial<Omit<Snapshot, "id">>) => {
+    dispatch({ type: "snapshot/update", id: snapshot.id, patch });
+  };
+
+  return (
+    <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[1fr_200px_1fr] md:items-end">
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${snapshot.id}-account`}>口座</Label>
+        <Select value={snapshot.accountId} onValueChange={(v) => update({ accountId: v })}>
+          <SelectTrigger id={`${snapshot.id}-account`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {plan.accounts.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${snapshot.id}-month`}>年月</Label>
+        <MonthExprInput
+          id={`${snapshot.id}-month`}
+          value={snapshot.month}
+          onChange={(v) => {
+            if (!v) return;
+            update({ month: v });
+          }}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${snapshot.id}-balance`}>残高 (円)</Label>
+        <CommittedInput
+          id={`${snapshot.id}-balance`}
+          type="number"
+          inputMode="numeric"
+          value={snapshot.balance}
+          onCommit={(v) => {
+            const n = Number(v);
+            if (!Number.isFinite(n)) return;
+            update({ balance: n });
+          }}
+        />
+      </div>
+    </div>
   );
 }

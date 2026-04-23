@@ -85,15 +85,13 @@ export function AccountsCard() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {account.kind !== "cash" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setExpandedId(isExpanded ? null : account.id)}
-                        >
-                          {isExpanded ? "閉じる" : "設定"}
-                        </Button>
-                      ) : null}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setExpandedId(isExpanded ? null : account.id)}
+                      >
+                        {isExpanded ? "閉じる" : "編集"}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -103,7 +101,7 @@ export function AccountsCard() {
                       </Button>
                     </div>
                   </div>
-                  {isExpanded ? <AccountParamsEditor account={account} /> : null}
+                  {isExpanded ? <AccountEditor account={account} /> : null}
                 </li>
               );
             })}
@@ -126,6 +124,29 @@ function summaryForAccount(account: Account): string {
     return ` / ${LIABILITY_SCHEDULE_KIND_LABEL[l.scheduleKind]} 年利 ${(l.annualRate * 100).toFixed(2)}% / ${l.termMonths} ヶ月`;
   }
   return "";
+}
+
+function AccountEditor({ account }: { account: Account }) {
+  const { dispatch } = usePlan();
+  return (
+    <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4">
+      <div className="grid gap-3 md:grid-cols-[1fr_200px] md:items-end">
+        <div className="grid gap-1.5">
+          <Label htmlFor={`acc-${account.id}-label`}>ラベル</Label>
+          <CommittedInput
+            id={`acc-${account.id}-label`}
+            value={account.label}
+            onCommit={(v) => dispatch({ type: "account/update", id: account.id, patch: { label: v } })}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label>種別</Label>
+          <span className="text-sm text-muted-foreground">{ACCOUNT_KIND_LABEL[account.kind]}</span>
+        </div>
+      </div>
+      <AccountParamsEditor account={account} />
+    </div>
+  );
 }
 
 function AccountParamsEditor({ account }: { account: Account }) {
