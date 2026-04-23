@@ -12,6 +12,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCollapse } from "@/hooks/use-collapse";
 import {
   type AggregatePeriod,
   aggregateFlow,
@@ -19,7 +20,6 @@ import {
   SYSTEM_CATEGORY_LABEL,
   UNCATEGORIZED_KEY,
 } from "@/lib/aggregate";
-import { useCollapse } from "@/hooks/use-collapse";
 import { categoryPath } from "@/lib/categories";
 import type { Category, CategoryKind, Ulid } from "@/lib/dsl/types";
 import { formatYenCompact } from "@/lib/format";
@@ -159,31 +159,36 @@ export function FlowChart({ kind }: FlowChartProps) {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent>
-        {hasData ? (
-          <ChartContainer config={chartConfig} className="h-[320px] w-full">
-            <BarChart data={chartData} margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="period"
-                tickLine={false}
-                axisLine={false}
-                minTickGap={24}
-                height={xAxisTick ? 48 : 30}
-                tick={xAxisTick}
-              />
-              <YAxis tickFormatter={(v: number) => formatYenCompact(v)} tickLine={false} axisLine={false} width={72} />
-              <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-              <ChartLegend content={<ChartLegendContent />} />
-              {viewData.categoryOrder.map((key) => (
-                <Bar key={key} dataKey={key} stackId="flow" fill={`var(--color-${key})`} isAnimationActive={false} />
-              ))}
-            </BarChart>
-          </ChartContainer>
-        ) : (
-          <p className="text-sm text-muted-foreground">データを追加するとグラフが表示されます。</p>
-        )}
-      </CardContent>
+        <CardContent>
+          {hasData ? (
+            <ChartContainer config={chartConfig} className="h-[320px] w-full">
+              <BarChart data={chartData} margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="period"
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={24}
+                  height={xAxisTick ? 48 : 30}
+                  tick={xAxisTick}
+                />
+                <YAxis
+                  tickFormatter={(v: number) => formatYenCompact(v)}
+                  tickLine={false}
+                  axisLine={false}
+                  width={72}
+                />
+                <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
+                <ChartLegend content={<ChartLegendContent />} />
+                {viewData.categoryOrder.map((key) => (
+                  <Bar key={key} dataKey={key} stackId="flow" fill={`var(--color-${key})`} isAnimationActive={false} />
+                ))}
+              </BarChart>
+            </ChartContainer>
+          ) : (
+            <p className="text-sm text-muted-foreground">データを追加するとグラフが表示されます。</p>
+          )}
+        </CardContent>
       )}
     </Card>
   );

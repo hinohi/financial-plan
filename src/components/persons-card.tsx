@@ -43,68 +43,73 @@ export function PersonsCard() {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent className="grid gap-4">
-        <div className="grid gap-3 md:grid-cols-[1fr_160px_auto] md:items-end">
-          <div className="grid gap-2">
-            <Label htmlFor="person-label">ラベル</Label>
-            <Input
-              id="person-label"
-              placeholder="自分 / 子 A"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
+        <CardContent className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_160px_auto] md:items-end">
+            <div className="grid gap-2">
+              <Label htmlFor="person-label">ラベル</Label>
+              <Input
+                id="person-label"
+                placeholder="自分 / 子 A"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="person-birth">生年月</Label>
+              <Input
+                id="person-birth"
+                type="month"
+                value={birthMonth}
+                onChange={(e) => setBirthMonth(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleAdd} disabled={!canAdd}>
+              追加
+            </Button>
+          </div>
+          {plan.persons.length === 0 ? (
+            <p className="text-sm text-muted-foreground">まだ人物が登録されていません。</p>
+          ) : (
+            <SortableList
+              items={plan.persons}
+              onReorder={(order) => dispatch({ type: "persons/reorder", order })}
+              renderItem={(person, handle) => (
+                <div className="grid gap-3 px-2 py-3 md:grid-cols-[32px_1fr_160px_auto] md:items-center">
+                  {handle}
+                  <CommittedInput
+                    aria-label="ラベル"
+                    value={person.label}
+                    onCommit={(v) => dispatch({ type: "person/update", id: person.id, patch: { label: v } })}
+                  />
+                  <Input
+                    aria-label="生年月"
+                    type="month"
+                    value={person.birthMonth}
+                    onChange={(e) => {
+                      if (!isValidYearMonth(e.target.value)) return;
+                      dispatch({
+                        type: "person/update",
+                        id: person.id,
+                        patch: { birthMonth: e.target.value as YearMonth },
+                      });
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (!window.confirm(`"${person.label}" を参照している年月指定は全て削除されます。続行しますか？`))
+                        return;
+                      dispatch({ type: "person/remove", id: person.id });
+                    }}
+                  >
+                    削除
+                  </Button>
+                </div>
+              )}
             />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="person-birth">生年月</Label>
-            <Input id="person-birth" type="month" value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)} />
-          </div>
-          <Button onClick={handleAdd} disabled={!canAdd}>
-            追加
-          </Button>
-        </div>
-        {plan.persons.length === 0 ? (
-          <p className="text-sm text-muted-foreground">まだ人物が登録されていません。</p>
-        ) : (
-          <SortableList
-            items={plan.persons}
-            onReorder={(order) => dispatch({ type: "persons/reorder", order })}
-            renderItem={(person, handle) => (
-              <div className="grid gap-3 px-2 py-3 md:grid-cols-[32px_1fr_160px_auto] md:items-center">
-                {handle}
-                <CommittedInput
-                  aria-label="ラベル"
-                  value={person.label}
-                  onCommit={(v) => dispatch({ type: "person/update", id: person.id, patch: { label: v } })}
-                />
-                <Input
-                  aria-label="生年月"
-                  type="month"
-                  value={person.birthMonth}
-                  onChange={(e) => {
-                    if (!isValidYearMonth(e.target.value)) return;
-                    dispatch({
-                      type: "person/update",
-                      id: person.id,
-                      patch: { birthMonth: e.target.value as YearMonth },
-                    });
-                  }}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (!window.confirm(`"${person.label}" を参照している年月指定は全て削除されます。続行しますか？`))
-                      return;
-                    dispatch({ type: "person/remove", id: person.id });
-                  }}
-                >
-                  削除
-                </Button>
-              </div>
-            )}
-          />
-        )}
-      </CardContent>
+          )}
+        </CardContent>
       )}
     </Card>
   );

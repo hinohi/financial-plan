@@ -1,7 +1,6 @@
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { CommittedInput } from "@/components/ui/committed-input";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addMonths } from "@/lib/dsl/month";
 import type { LoanRateSegment, LoanSpec, MonthExpr } from "@/lib/dsl/types";

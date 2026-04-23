@@ -117,158 +117,159 @@ export function FlowsCard({ kind }: FlowsCardProps) {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent className="grid gap-4">
-        {plan.accounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_140px_200px_200px_auto] lg:items-end">
-            <div className="grid gap-2">
-              <Label htmlFor={`${kind}-label`}>ラベル</Label>
-              <Input
-                id={`${kind}-label`}
-                placeholder={config.placeholderLabel}
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
+        <CardContent className="grid gap-4">
+          {plan.accounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_140px_200px_200px_auto] lg:items-end">
+              <div className="grid gap-2">
+                <Label htmlFor={`${kind}-label`}>ラベル</Label>
+                <Input
+                  id={`${kind}-label`}
+                  placeholder={config.placeholderLabel}
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`${kind}-account`}>口座</Label>
+                <Select value={accountId} onValueChange={setAccountId}>
+                  <SelectTrigger id={`${kind}-account`} className="w-full">
+                    <SelectValue placeholder="選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plan.accounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`${kind}-category`}>カテゴリ</Label>
+                <CategorySelect id={`${kind}-category`} kinds={kind} value={categoryId} onChange={setCategoryId} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`${kind}-amount`}>月額 (円)</Label>
+                <Input
+                  id={`${kind}-amount`}
+                  type="number"
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`${kind}-start`}>開始月</Label>
+                <MonthExprInput id={`${kind}-start`} value={startMonth} onChange={setStartMonth} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor={`${kind}-end`}>終了月 (任意)</Label>
+                <MonthExprInput id={`${kind}-end`} value={endMonth} onChange={setEndMonth} allowEmpty />
+              </div>
+              <Button onClick={handleAdd} disabled={!canAdd}>
+                追加
+              </Button>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor={`${kind}-account`}>口座</Label>
-              <Select value={accountId} onValueChange={setAccountId}>
-                <SelectTrigger id={`${kind}-account`} className="w-full">
-                  <SelectValue placeholder="選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {plan.accounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor={`${kind}-category`}>カテゴリ</Label>
-              <CategorySelect id={`${kind}-category`} kinds={kind} value={categoryId} onChange={setCategoryId} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor={`${kind}-amount`}>月額 (円)</Label>
-              <Input
-                id={`${kind}-amount`}
-                type="number"
-                inputMode="numeric"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor={`${kind}-start`}>開始月</Label>
-              <MonthExprInput id={`${kind}-start`} value={startMonth} onChange={setStartMonth} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor={`${kind}-end`}>終了月 (任意)</Label>
-              <MonthExprInput id={`${kind}-end`} value={endMonth} onChange={setEndMonth} allowEmpty />
-            </div>
-            <Button onClick={handleAdd} disabled={!canAdd}>
-              追加
-            </Button>
-          </div>
-        )}
-        {flows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">項目がありません。</p>
-        ) : (
-          <SortableList
-            items={flows}
-            onReorder={(order) => dispatch(config.reorderAction(order))}
-            renderItem={(flow, handle) => {
-              const head = flow.segments[0];
-              const extra = flow.segments.length - 1;
-              const isExpanded = expandedId === flow.id;
-              const loan = kind === "expense" ? (flow as Expense).loan : undefined;
-              const loanHead = loan?.rateSegments[0];
-              const loanLast = loan?.rateSegments[loan.rateSegments.length - 1];
-              return (
-                <div className="grid gap-3 px-2 py-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-start gap-2">
-                      {handle}
-                      <div className="grid text-sm">
-                        <span className="font-medium">
-                          {flow.label}
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            → {accountLabel.get(flow.accountId) ?? "不明"}
+          )}
+          {flows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">項目がありません。</p>
+          ) : (
+            <SortableList
+              items={flows}
+              onReorder={(order) => dispatch(config.reorderAction(order))}
+              renderItem={(flow, handle) => {
+                const head = flow.segments[0];
+                const extra = flow.segments.length - 1;
+                const isExpanded = expandedId === flow.id;
+                const loan = kind === "expense" ? (flow as Expense).loan : undefined;
+                const loanHead = loan?.rateSegments[0];
+                const loanLast = loan?.rateSegments[loan.rateSegments.length - 1];
+                return (
+                  <div className="grid gap-3 px-2 py-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-start gap-2">
+                        {handle}
+                        <div className="grid text-sm">
+                          <span className="font-medium">
+                            {flow.label}
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              → {accountLabel.get(flow.accountId) ?? "不明"}
+                            </span>
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {flow.categoryId
+                                ? (() => {
+                                    const c = categoryById.get(flow.categoryId);
+                                    return c ? `／ ${categoryPath(c, categoryById)}` : "／ 未分類";
+                                  })()
+                                : "／ 未分類"}
+                            </span>
                           </span>
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {flow.categoryId
-                              ? (() => {
-                                  const c = categoryById.get(flow.categoryId);
-                                  return c ? `／ ${categoryPath(c, categoryById)}` : "／ 未分類";
-                                })()
-                              : "／ 未分類"}
+                          <span className="text-xs text-muted-foreground">
+                            {loan ? (
+                              <>
+                                ローン / 元本{" "}
+                                <span className="font-mono tabular-nums">{formatYen(loan.principal)}</span>
+                                {loanHead
+                                  ? ` / ${formatMonthExpr(loanHead.startMonth)} 〜 ${loanLast?.endMonth ? formatMonthExpr(loanLast.endMonth) : "計画終了"}`
+                                  : null}
+                                {loan.rateSegments.length > 1 ? (
+                                  <span className="ml-1">金利 {loan.rateSegments.length} 区間</span>
+                                ) : null}
+                              </>
+                            ) : head ? (
+                              <>
+                                {formatMonthExpr(head.startMonth)} 〜{" "}
+                                {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
+                                {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
+                                <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
+                                {head.raise ? <span className="ml-1">(昇給あり)</span> : null}
+                                {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
+                              </>
+                            ) : (
+                              "—"
+                            )}
                           </span>
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {loan ? (
-                            <>
-                              ローン / 元本 <span className="font-mono tabular-nums">{formatYen(loan.principal)}</span>
-                              {loanHead
-                                ? ` / ${formatMonthExpr(loanHead.startMonth)} 〜 ${loanLast?.endMonth ? formatMonthExpr(loanLast.endMonth) : "計画終了"}`
-                                : null}
-                              {loan.rateSegments.length > 1 ? (
-                                <span className="ml-1">金利 {loan.rateSegments.length} 区間</span>
-                              ) : null}
-                            </>
-                          ) : head ? (
-                            <>
-                              {formatMonthExpr(head.startMonth)} 〜{" "}
-                              {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
-                              {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
-                              <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
-                              {head.raise ? <span className="ml-1">(昇給あり)</span> : null}
-                              {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
-                            </>
-                          ) : (
-                            "—"
-                          )}
-                        </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : flow.id)}>
+                          {isExpanded ? "閉じる" : "編集"}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => dispatch(config.removeAction(flow.id))}>
+                          削除
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : flow.id)}>
-                        {isExpanded ? "閉じる" : "編集"}
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => dispatch(config.removeAction(flow.id))}>
-                        削除
-                      </Button>
-                    </div>
+                    {isExpanded ? (
+                      <FlowEditor
+                        flow={flow}
+                        kind={kind}
+                        planStart={plan.settings.planStartMonth}
+                        onLabelChange={(value) =>
+                          dispatch(config.updateAction(flow.id, { label: value } as Partial<Omit<Flow, "id">>))
+                        }
+                        onAccountChange={(value) =>
+                          dispatch(config.updateAction(flow.id, { accountId: value } as Partial<Omit<Flow, "id">>))
+                        }
+                        onCategoryChange={(value) =>
+                          dispatch(config.updateAction(flow.id, { categoryId: value } as Partial<Omit<Flow, "id">>))
+                        }
+                        onSegmentsChange={(next) =>
+                          dispatch(config.updateAction(flow.id, { segments: next } as Partial<Omit<Flow, "id">>))
+                        }
+                        onLoanChange={(next) =>
+                          dispatch(config.updateAction(flow.id, { loan: next } as Partial<Omit<Flow, "id">>))
+                        }
+                      />
+                    ) : null}
                   </div>
-                  {isExpanded ? (
-                    <FlowEditor
-                      flow={flow}
-                      kind={kind}
-                      planStart={plan.settings.planStartMonth}
-                      onLabelChange={(value) =>
-                        dispatch(config.updateAction(flow.id, { label: value } as Partial<Omit<Flow, "id">>))
-                      }
-                      onAccountChange={(value) =>
-                        dispatch(config.updateAction(flow.id, { accountId: value } as Partial<Omit<Flow, "id">>))
-                      }
-                      onCategoryChange={(value) =>
-                        dispatch(config.updateAction(flow.id, { categoryId: value } as Partial<Omit<Flow, "id">>))
-                      }
-                      onSegmentsChange={(next) =>
-                        dispatch(config.updateAction(flow.id, { segments: next } as Partial<Omit<Flow, "id">>))
-                      }
-                      onLoanChange={(next) =>
-                        dispatch(config.updateAction(flow.id, { loan: next } as Partial<Omit<Flow, "id">>))
-                      }
-                    />
-                  ) : null}
-                </div>
-              );
-            }}
-          />
-        )}
-      </CardContent>
+                );
+              }}
+            />
+          )}
+        </CardContent>
       )}
     </Card>
   );

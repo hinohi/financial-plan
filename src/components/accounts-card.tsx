@@ -53,76 +53,81 @@ export function AccountsCard() {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent className="grid gap-4">
-        <div className="grid gap-3 md:grid-cols-[1fr_200px_auto] md:items-end">
-          <div className="grid gap-2">
-            <Label htmlFor="account-label">ラベル</Label>
-            <Input id="account-label" placeholder="普通預金" value={label} onChange={(e) => setLabel(e.target.value)} />
+        <CardContent className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_200px_auto] md:items-end">
+            <div className="grid gap-2">
+              <Label htmlFor="account-label">ラベル</Label>
+              <Input
+                id="account-label"
+                placeholder="普通預金"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="account-kind">種別</Label>
+              <Select value={kind} onValueChange={(v) => setKind(v as AccountKind)}>
+                <SelectTrigger id="account-kind" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ACCOUNT_KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {ACCOUNT_KIND_LABEL[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleAdd} disabled={!label.trim()}>
+              追加
+            </Button>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="account-kind">種別</Label>
-            <Select value={kind} onValueChange={(v) => setKind(v as AccountKind)}>
-              <SelectTrigger id="account-kind" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ACCOUNT_KINDS.map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {ACCOUNT_KIND_LABEL[k]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={handleAdd} disabled={!label.trim()}>
-            追加
-          </Button>
-        </div>
-        {plan.accounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">口座を追加してください。</p>
-        ) : (
-          <SortableList
-            items={plan.accounts}
-            onReorder={(order) => dispatch({ type: "accounts/reorder", order })}
-            renderItem={(account, handle) => {
-              const isExpanded = expandedId === account.id;
-              return (
-                <div className="grid gap-3 px-2 py-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                      {handle}
-                      <div className="grid">
-                        <span className="font-medium">{account.label}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {ACCOUNT_KIND_LABEL[account.kind]}
-                          {summaryForAccount(account)}
-                        </span>
+          {plan.accounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">口座を追加してください。</p>
+          ) : (
+            <SortableList
+              items={plan.accounts}
+              onReorder={(order) => dispatch({ type: "accounts/reorder", order })}
+              renderItem={(account, handle) => {
+                const isExpanded = expandedId === account.id;
+                return (
+                  <div className="grid gap-3 px-2 py-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        {handle}
+                        <div className="grid">
+                          <span className="font-medium">{account.label}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {ACCOUNT_KIND_LABEL[account.kind]}
+                            {summaryForAccount(account)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedId(isExpanded ? null : account.id)}
+                        >
+                          {isExpanded ? "閉じる" : "編集"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => dispatch({ type: "account/remove", id: account.id })}
+                        >
+                          削除
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setExpandedId(isExpanded ? null : account.id)}
-                      >
-                        {isExpanded ? "閉じる" : "編集"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => dispatch({ type: "account/remove", id: account.id })}
-                      >
-                        削除
-                      </Button>
-                    </div>
+                    {isExpanded ? <AccountEditor account={account} /> : null}
                   </div>
-                  {isExpanded ? <AccountEditor account={account} /> : null}
-                </div>
-              );
-            }}
-          />
-        )}
-      </CardContent>
+                );
+              }}
+            />
+          )}
+        </CardContent>
       )}
     </Card>
   );

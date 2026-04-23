@@ -57,64 +57,64 @@ export function CategoriesCard() {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent className="grid gap-4">
-        <div className="grid gap-3 md:grid-cols-[160px_1fr_1fr_auto] md:items-end">
-          <div className="grid gap-2">
-            <Label htmlFor="category-kind">種別</Label>
-            <Select
-              value={newKind}
-              onValueChange={(v) => {
-                setNewKind(v as CategoryKind);
-                setNewParentId(NONE_VALUE);
-              }}
-            >
-              <SelectTrigger id="category-kind" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORY_KINDS.map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {CATEGORY_KIND_LABEL[k]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-[160px_1fr_1fr_auto] md:items-end">
+            <div className="grid gap-2">
+              <Label htmlFor="category-kind">種別</Label>
+              <Select
+                value={newKind}
+                onValueChange={(v) => {
+                  setNewKind(v as CategoryKind);
+                  setNewParentId(NONE_VALUE);
+                }}
+              >
+                <SelectTrigger id="category-kind" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORY_KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {CATEGORY_KIND_LABEL[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="category-label">ラベル</Label>
+              <Input
+                id="category-label"
+                placeholder="食費 / 給与 / など"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="category-parent">親カテゴリ</Label>
+              <Select value={newParentId} onValueChange={setNewParentId}>
+                <SelectTrigger id="category-parent" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>（なし / トップレベル）</SelectItem>
+                  {parentCandidates.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {categoryPath(c, byId)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleAdd} disabled={!canAdd}>
+              追加
+            </Button>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="category-label">ラベル</Label>
-            <Input
-              id="category-label"
-              placeholder="食費 / 給与 / など"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-            />
+          <div className="grid gap-4">
+            {CATEGORY_KINDS.map((kind) => (
+              <CategoryGroup key={kind} kind={kind} />
+            ))}
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="category-parent">親カテゴリ</Label>
-            <Select value={newParentId} onValueChange={setNewParentId}>
-              <SelectTrigger id="category-parent" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE_VALUE}>（なし / トップレベル）</SelectItem>
-                {parentCandidates.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {categoryPath(c, byId)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={handleAdd} disabled={!canAdd}>
-            追加
-          </Button>
-        </div>
-        <div className="grid gap-4">
-          {CATEGORY_KINDS.map((kind) => (
-            <CategoryGroup key={kind} kind={kind} />
-          ))}
-        </div>
-      </CardContent>
+        </CardContent>
       )}
     </Card>
   );

@@ -73,144 +73,144 @@ export function TransfersCard() {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent className="grid gap-4">
-        {!twoAccounts ? (
-          <p className="text-sm text-muted-foreground">振替には 2 つ以上の口座が必要です。</p>
-        ) : (
-          <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_140px_200px_200px_auto] lg:items-end">
-            <div className="grid gap-2">
-              <Label htmlFor="transfer-label">ラベル</Label>
-              <Input
-                id="transfer-label"
-                placeholder="NISA 積立"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
+        <CardContent className="grid gap-4">
+          {!twoAccounts ? (
+            <p className="text-sm text-muted-foreground">振替には 2 つ以上の口座が必要です。</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_140px_200px_200px_auto] lg:items-end">
+              <div className="grid gap-2">
+                <Label htmlFor="transfer-label">ラベル</Label>
+                <Input
+                  id="transfer-label"
+                  placeholder="NISA 積立"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="transfer-from">出金元</Label>
+                <Select value={fromAccountId} onValueChange={setFromAccountId}>
+                  <SelectTrigger id="transfer-from" className="w-full">
+                    <SelectValue placeholder="選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plan.accounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="transfer-to">入金先</Label>
+                <Select value={toAccountId} onValueChange={setToAccountId}>
+                  <SelectTrigger id="transfer-to" className="w-full">
+                    <SelectValue placeholder="選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plan.accounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="transfer-amount">月額 (円)</Label>
+                <Input
+                  id="transfer-amount"
+                  type="number"
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="transfer-start">開始月</Label>
+                <MonthExprInput id="transfer-start" value={startMonth} onChange={setStartMonth} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="transfer-end">終了月 (任意)</Label>
+                <MonthExprInput id="transfer-end" value={endMonth} onChange={setEndMonth} allowEmpty />
+              </div>
+              <Button onClick={handleAdd} disabled={!canAdd}>
+                追加
+              </Button>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="transfer-from">出金元</Label>
-              <Select value={fromAccountId} onValueChange={setFromAccountId}>
-                <SelectTrigger id="transfer-from" className="w-full">
-                  <SelectValue placeholder="選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {plan.accounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="transfer-to">入金先</Label>
-              <Select value={toAccountId} onValueChange={setToAccountId}>
-                <SelectTrigger id="transfer-to" className="w-full">
-                  <SelectValue placeholder="選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {plan.accounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="transfer-amount">月額 (円)</Label>
-              <Input
-                id="transfer-amount"
-                type="number"
-                inputMode="numeric"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="transfer-start">開始月</Label>
-              <MonthExprInput id="transfer-start" value={startMonth} onChange={setStartMonth} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="transfer-end">終了月 (任意)</Label>
-              <MonthExprInput id="transfer-end" value={endMonth} onChange={setEndMonth} allowEmpty />
-            </div>
-            <Button onClick={handleAdd} disabled={!canAdd}>
-              追加
-            </Button>
-          </div>
-        )}
-        {plan.transfers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">振替がありません。</p>
-        ) : (
-          <SortableList
-            items={plan.transfers}
-            onReorder={(order) => dispatch({ type: "transfers/reorder", order })}
-            renderItem={(transfer, handle) => {
-              const head = transfer.segments[0];
-              const extra = transfer.segments.length - 1;
-              const isExpanded = expandedId === transfer.id;
-              return (
-                <div className="grid gap-3 px-2 py-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-start gap-2">
-                      {handle}
-                      <div className="grid text-sm">
-                        <span className="font-medium">
-                          {transfer.label}
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {accountLabel.get(transfer.fromAccountId) ?? "不明"} →{" "}
-                            {accountLabel.get(transfer.toAccountId) ?? "不明"}
+          )}
+          {plan.transfers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">振替がありません。</p>
+          ) : (
+            <SortableList
+              items={plan.transfers}
+              onReorder={(order) => dispatch({ type: "transfers/reorder", order })}
+              renderItem={(transfer, handle) => {
+                const head = transfer.segments[0];
+                const extra = transfer.segments.length - 1;
+                const isExpanded = expandedId === transfer.id;
+                return (
+                  <div className="grid gap-3 px-2 py-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-start gap-2">
+                        {handle}
+                        <div className="grid text-sm">
+                          <span className="font-medium">
+                            {transfer.label}
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {accountLabel.get(transfer.fromAccountId) ?? "不明"} →{" "}
+                              {accountLabel.get(transfer.toAccountId) ?? "不明"}
+                            </span>
                           </span>
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {head ? (
-                            <>
-                              {formatMonthExpr(head.startMonth)} 〜{" "}
-                              {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
-                              {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
-                              <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
-                              {head.raise ? <span className="ml-1">(増減あり)</span> : null}
-                              {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
-                              {transfer.minFromBalance !== undefined ? (
-                                <span className="ml-1">
-                                  / 最低残高{" "}
-                                  <span className="font-mono tabular-nums">{formatYen(transfer.minFromBalance)}</span>
-                                </span>
-                              ) : null}
-                            </>
-                          ) : (
-                            "—"
-                          )}
-                        </span>
+                          <span className="text-xs text-muted-foreground">
+                            {head ? (
+                              <>
+                                {formatMonthExpr(head.startMonth)} 〜{" "}
+                                {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
+                                {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
+                                <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
+                                {head.raise ? <span className="ml-1">(増減あり)</span> : null}
+                                {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
+                                {transfer.minFromBalance !== undefined ? (
+                                  <span className="ml-1">
+                                    / 最低残高{" "}
+                                    <span className="font-mono tabular-nums">{formatYen(transfer.minFromBalance)}</span>
+                                  </span>
+                                ) : null}
+                              </>
+                            ) : (
+                              "—"
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedId(isExpanded ? null : transfer.id)}
+                        >
+                          {isExpanded ? "閉じる" : "編集"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => dispatch({ type: "transfer/remove", id: transfer.id })}
+                        >
+                          削除
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setExpandedId(isExpanded ? null : transfer.id)}
-                      >
-                        {isExpanded ? "閉じる" : "編集"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => dispatch({ type: "transfer/remove", id: transfer.id })}
-                      >
-                        削除
-                      </Button>
-                    </div>
+                    {isExpanded ? (
+                      <TransferEditor transfer={transfer} planStart={plan.settings.planStartMonth} />
+                    ) : null}
                   </div>
-                  {isExpanded ? (
-                    <TransferEditor transfer={transfer} planStart={plan.settings.planStartMonth} />
-                  ) : null}
-                </div>
-              );
-            }}
-          />
-        )}
-      </CardContent>
+                );
+              }}
+            />
+          )}
+        </CardContent>
       )}
     </Card>
   );
@@ -240,11 +240,7 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
       <div className="grid gap-3 md:grid-cols-3 md:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${transfer.id}-label`}>ラベル</Label>
-          <CommittedInput
-            id={`${transfer.id}-label`}
-            value={transfer.label}
-            onCommit={(v) => update({ label: v })}
-          />
+          <CommittedInput id={`${transfer.id}-label`} value={transfer.label} onCommit={(v) => update({ label: v })} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${transfer.id}-from`}>出金元</Label>

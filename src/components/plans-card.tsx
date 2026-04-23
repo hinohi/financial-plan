@@ -88,121 +88,121 @@ export function PlansCard() {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent className="grid gap-4">
-        <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
-          <div className="grid gap-2">
-            <Label htmlFor="plan-select">現在のプラン</Label>
-            <Select value={registry.currentPlanId} onValueChange={selectPlan}>
-              <SelectTrigger id="plan-select" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {registry.plans.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button variant="outline" onClick={startRename}>
-            名称変更
-          </Button>
-          <Button variant="outline" onClick={handleExport}>
-            JSON エクスポート
-          </Button>
-          <Button variant="ghost" onClick={handleDelete} disabled={!canDelete}>
-            削除
-          </Button>
-        </div>
-        {renaming ? (
-          <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[1fr_auto_auto]">
-            <div className="grid gap-1.5">
-              <Label htmlFor="plan-rename">新しい名称</Label>
-              <Input id="plan-rename" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} />
-            </div>
-            <Button onClick={confirmRename} disabled={renameValue.trim() === ""}>
-              保存
-            </Button>
-            <Button variant="ghost" onClick={() => setRenaming(false)}>
-              キャンセル
-            </Button>
-          </div>
-        ) : null}
-
-        <div className="grid gap-3 rounded-md border bg-muted/10 p-4">
-          <div className="text-sm font-semibold">新規プラン</div>
-          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+        <CardContent className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
             <div className="grid gap-2">
-              <Label htmlFor="plan-new-name">名称</Label>
-              <Input
-                id="plan-new-name"
-                placeholder="マイプラン"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
-            <Button
-              onClick={() => {
-                createPlan(newName);
-                setNewName("");
-              }}
-              disabled={newName.trim() === ""}
-            >
-              作成
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid gap-3 rounded-md border bg-muted/10 p-4">
-          <div className="text-sm font-semibold">JSON インポート</div>
-          <div className="grid gap-3 md:grid-cols-[200px_1fr_auto] md:items-end">
-            <div className="grid gap-2">
-              <Label htmlFor="import-mode">モード</Label>
-              <Select value={importMode} onValueChange={(v) => setImportMode(v as ImportMode)}>
-                <SelectTrigger id="import-mode" className="w-full">
+              <Label htmlFor="plan-select">現在のプラン</Label>
+              <Select value={registry.currentPlanId} onValueChange={selectPlan}>
+                <SelectTrigger id="plan-select" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="new">新しいプランとして追加</SelectItem>
-                  <SelectItem value="overwrite">現在のプランを上書き</SelectItem>
+                  {registry.plans.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            {importMode === "new" ? (
+            <Button variant="outline" onClick={startRename}>
+              名称変更
+            </Button>
+            <Button variant="outline" onClick={handleExport}>
+              JSON エクスポート
+            </Button>
+            <Button variant="ghost" onClick={handleDelete} disabled={!canDelete}>
+              削除
+            </Button>
+          </div>
+          {renaming ? (
+            <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[1fr_auto_auto]">
+              <div className="grid gap-1.5">
+                <Label htmlFor="plan-rename">新しい名称</Label>
+                <Input id="plan-rename" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} />
+              </div>
+              <Button onClick={confirmRename} disabled={renameValue.trim() === ""}>
+                保存
+              </Button>
+              <Button variant="ghost" onClick={() => setRenaming(false)}>
+                キャンセル
+              </Button>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 rounded-md border bg-muted/10 p-4">
+            <div className="text-sm font-semibold">新規プラン</div>
+            <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
               <div className="grid gap-2">
-                <Label htmlFor="import-name">名称 (任意)</Label>
+                <Label htmlFor="plan-new-name">名称</Label>
                 <Input
-                  id="import-name"
-                  placeholder="インポートしたプラン"
-                  value={importName}
-                  onChange={(e) => setImportName(e.target.value)}
+                  id="plan-new-name"
+                  placeholder="マイプラン"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
                 />
               </div>
-            ) : (
-              <p className="self-end text-xs text-muted-foreground">
-                現在のプラン「{currentMeta?.name}」を読み込んだ JSON の内容で上書きする
-              </p>
-            )}
-            <Button onClick={() => fileInputRef.current?.click()}>ファイル選択</Button>
+              <Button
+                onClick={() => {
+                  createPlan(newName);
+                  setNewName("");
+                }}
+                disabled={newName.trim() === ""}
+              >
+                作成
+              </Button>
+            </div>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void handleImportFile(f);
-            }}
-          />
-          {importError ? <p className="text-sm text-destructive">{importError}</p> : null}
-        </div>
 
-        <p className="text-xs text-muted-foreground">
-          最終更新: {currentMeta ? new Date(currentMeta.updatedAt).toLocaleString() : "—"}
-        </p>
-      </CardContent>
+          <div className="grid gap-3 rounded-md border bg-muted/10 p-4">
+            <div className="text-sm font-semibold">JSON インポート</div>
+            <div className="grid gap-3 md:grid-cols-[200px_1fr_auto] md:items-end">
+              <div className="grid gap-2">
+                <Label htmlFor="import-mode">モード</Label>
+                <Select value={importMode} onValueChange={(v) => setImportMode(v as ImportMode)}>
+                  <SelectTrigger id="import-mode" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">新しいプランとして追加</SelectItem>
+                    <SelectItem value="overwrite">現在のプランを上書き</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {importMode === "new" ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="import-name">名称 (任意)</Label>
+                  <Input
+                    id="import-name"
+                    placeholder="インポートしたプラン"
+                    value={importName}
+                    onChange={(e) => setImportName(e.target.value)}
+                  />
+                </div>
+              ) : (
+                <p className="self-end text-xs text-muted-foreground">
+                  現在のプラン「{currentMeta?.name}」を読み込んだ JSON の内容で上書きする
+                </p>
+              )}
+              <Button onClick={() => fileInputRef.current?.click()}>ファイル選択</Button>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleImportFile(f);
+              }}
+            />
+            {importError ? <p className="text-sm text-destructive">{importError}</p> : null}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            最終更新: {currentMeta ? new Date(currentMeta.updatedAt).toLocaleString() : "—"}
+          </p>
+        </CardContent>
       )}
     </Card>
   );

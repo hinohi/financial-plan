@@ -14,9 +14,9 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { type AggregatePeriod, aggregate } from "@/lib/aggregate";
+import type { Ulid } from "@/lib/dsl/types";
 import { formatYenCompact } from "@/lib/format";
 import { interpret } from "@/lib/interpret";
-import type { Ulid } from "@/lib/dsl/types";
 import { usePlan } from "@/state/plan-store";
 
 const AGE_OVERLAY_NONE = "__none__";
@@ -113,48 +113,53 @@ export function BalanceChart() {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent>
-        {hasData ? (
-          <ChartContainer config={chartConfig} className="h-[360px] w-full">
-            <LineChart data={chartData} margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="period"
-                tickLine={false}
-                axisLine={false}
-                minTickGap={24}
-                height={xAxisTick ? 48 : 30}
-                tick={xAxisTick}
-              />
-              <YAxis tickFormatter={(v: number) => formatYenCompact(v)} tickLine={false} axisLine={false} width={72} />
-              <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
-              <ChartLegend content={<ChartLegendContent />} />
-              <Line
-                type="monotone"
-                dataKey="total"
-                stroke="var(--color-total)"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
-              {plan.accounts.map((account) => (
+        <CardContent>
+          {hasData ? (
+            <ChartContainer config={chartConfig} className="h-[360px] w-full">
+              <LineChart data={chartData} margin={{ left: 12, right: 12, top: 12, bottom: 12 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="period"
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={24}
+                  height={xAxisTick ? 48 : 30}
+                  tick={xAxisTick}
+                />
+                <YAxis
+                  tickFormatter={(v: number) => formatYenCompact(v)}
+                  tickLine={false}
+                  axisLine={false}
+                  width={72}
+                />
+                <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+                <ChartLegend content={<ChartLegendContent />} />
                 <Line
-                  key={account.id}
                   type="monotone"
-                  dataKey={account.id}
-                  stroke={`var(--color-${account.id})`}
-                  strokeWidth={1.5}
-                  strokeDasharray="4 4"
+                  dataKey="total"
+                  stroke="var(--color-total)"
+                  strokeWidth={2}
                   dot={false}
                   isAnimationActive={false}
                 />
-              ))}
-            </LineChart>
-          </ChartContainer>
-        ) : (
-          <p className="text-sm text-muted-foreground">口座を追加するとグラフが表示されます。</p>
-        )}
-      </CardContent>
+                {plan.accounts.map((account) => (
+                  <Line
+                    key={account.id}
+                    type="monotone"
+                    dataKey={account.id}
+                    stroke={`var(--color-${account.id})`}
+                    strokeWidth={1.5}
+                    strokeDasharray="4 4"
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                ))}
+              </LineChart>
+            </ChartContainer>
+          ) : (
+            <p className="text-sm text-muted-foreground">口座を追加するとグラフが表示されます。</p>
+          )}
+        </CardContent>
       )}
     </Card>
   );

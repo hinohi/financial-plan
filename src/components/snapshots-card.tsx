@@ -3,10 +3,10 @@ import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CommittedInput } from "@/components/ui/committed-input";
 import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
 import { compareYearMonth, isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
@@ -87,85 +87,85 @@ export function SnapshotsCard() {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent className="grid gap-4">
-        {plan.accounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-[1fr_200px_1fr_auto] md:items-end">
-            <div className="grid gap-2">
-              <Label htmlFor="snapshot-account">口座</Label>
-              <Select value={accountId} onValueChange={setAccountId}>
-                <SelectTrigger id="snapshot-account" className="w-full">
-                  <SelectValue placeholder="選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {plan.accounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <CardContent className="grid gap-4">
+          {plan.accounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-[1fr_200px_1fr_auto] md:items-end">
+              <div className="grid gap-2">
+                <Label htmlFor="snapshot-account">口座</Label>
+                <Select value={accountId} onValueChange={setAccountId}>
+                  <SelectTrigger id="snapshot-account" className="w-full">
+                    <SelectValue placeholder="選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plan.accounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="snapshot-month">年月</Label>
+                <MonthExprInput id="snapshot-month" value={month} onChange={setMonth} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="snapshot-balance">残高 (円)</Label>
+                <Input
+                  id="snapshot-balance"
+                  type="number"
+                  inputMode="numeric"
+                  value={balance}
+                  onChange={(e) => setBalance(e.target.value)}
+                />
+              </div>
+              <Button onClick={handleAdd} disabled={!canAdd}>
+                追加
+              </Button>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="snapshot-month">年月</Label>
-              <MonthExprInput id="snapshot-month" value={month} onChange={setMonth} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="snapshot-balance">残高 (円)</Label>
-              <Input
-                id="snapshot-balance"
-                type="number"
-                inputMode="numeric"
-                value={balance}
-                onChange={(e) => setBalance(e.target.value)}
-              />
-            </div>
-            <Button onClick={handleAdd} disabled={!canAdd}>
-              追加
-            </Button>
-          </div>
-        )}
-        {sortedSnapshots.length === 0 ? (
-          <p className="text-sm text-muted-foreground">まだ断面が登録されていません。</p>
-        ) : (
-          <ul className="divide-y rounded-md border">
-            {sortedSnapshots.map((s) => {
-              const isExpanded = expandedId === s.id;
-              return (
-                <li key={s.id} className="grid gap-3 px-4 py-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="grid text-sm">
-                      <span className="font-medium">
-                        {describeMonth(s.month)} / {accountLabel.get(s.accountId) ?? "不明"}
-                        {isPersonAgeRef(s.month) ? (
-                          <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
-                            人物参照
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="font-mono tabular-nums">{formatYen(s.balance)}</span>
+          )}
+          {sortedSnapshots.length === 0 ? (
+            <p className="text-sm text-muted-foreground">まだ断面が登録されていません。</p>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {sortedSnapshots.map((s) => {
+                const isExpanded = expandedId === s.id;
+                return (
+                  <li key={s.id} className="grid gap-3 px-4 py-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="grid text-sm">
+                        <span className="font-medium">
+                          {describeMonth(s.month)} / {accountLabel.get(s.accountId) ?? "不明"}
+                          {isPersonAgeRef(s.month) ? (
+                            <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
+                              人物参照
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="font-mono tabular-nums">{formatYen(s.balance)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : s.id)}>
+                          {isExpanded ? "閉じる" : "編集"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => dispatch({ type: "snapshot/remove", id: s.id })}
+                        >
+                          削除
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : s.id)}>
-                        {isExpanded ? "閉じる" : "編集"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => dispatch({ type: "snapshot/remove", id: s.id })}
-                      >
-                        削除
-                      </Button>
-                    </div>
-                  </div>
-                  {isExpanded ? <SnapshotEditor snapshot={s} /> : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
+                    {isExpanded ? <SnapshotEditor snapshot={s} /> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
       )}
     </Card>
   );

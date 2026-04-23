@@ -26,7 +26,12 @@ type SortableListProps<T extends { id: Ulid }> = {
   className?: string;
 };
 
-export function SortableList<T extends { id: Ulid }>({ items, onReorder, renderItem, className }: SortableListProps<T>) {
+export function SortableList<T extends { id: Ulid }>({
+  items,
+  onReorder,
+  renderItem,
+  className,
+}: SortableListProps<T>) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),

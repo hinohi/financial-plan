@@ -42,33 +42,33 @@ export function SettingsCard() {
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent>
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="grid gap-2">
-            <Label htmlFor="plan-start">開始月</Label>
-            <MonthExprInput id="plan-start" value={settings.planStartMonth} onChange={handleStart} />
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-2">
+              <Label htmlFor="plan-start">開始月</Label>
+              <MonthExprInput id="plan-start" value={settings.planStartMonth} onChange={handleStart} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="plan-end">終了月</Label>
+              <MonthExprInput id="plan-end" value={settings.planEndMonth} onChange={handleEnd} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="year-start">年度開始月</Label>
+              <Select value={String(settings.yearStartMonth)} onValueChange={handleYearStart}>
+                <SelectTrigger id="year-start" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {YEAR_START_MONTHS.map((m) => (
+                    <SelectItem key={m} value={String(m)}>
+                      {m}月
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="plan-end">終了月</Label>
-            <MonthExprInput id="plan-end" value={settings.planEndMonth} onChange={handleEnd} />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="year-start">年度開始月</Label>
-            <Select value={String(settings.yearStartMonth)} onValueChange={handleYearStart}>
-              <SelectTrigger id="year-start" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {YEAR_START_MONTHS.map((m) => (
-                  <SelectItem key={m} value={String(m)}>
-                    {m}月
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </CardContent>
+        </CardContent>
       )}
     </Card>
   );

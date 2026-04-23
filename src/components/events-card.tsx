@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCollapse } from "@/hooks/use-collapse";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCollapse } from "@/hooks/use-collapse";
 import { categoryPath } from "@/lib/categories";
 import { newId } from "@/lib/dsl/id";
 import { compareYearMonth, isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
@@ -96,120 +96,119 @@ export function EventsCard() {
         <div className="flex items-start justify-between gap-2">
           <div>
             <CardTitle>単発イベント</CardTitle>
-            <CardDescription>
-              ボーナスや大型支出など、ある月に一度だけ発生する収支 (正で収入、負で支出)
-            </CardDescription>
+            <CardDescription>ボーナスや大型支出など、ある月に一度だけ発生する収支 (正で収入、負で支出)</CardDescription>
           </div>
           <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="単発イベント" />
         </div>
       </CardHeader>
       {collapsed ? null : (
-      <CardContent className="grid gap-4">
-        {plan.accounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_200px_1fr_auto] md:items-end">
-            <div className="grid gap-2">
-              <Label htmlFor="event-label">ラベル</Label>
-              <Input
-                id="event-label"
-                placeholder="ボーナス / 住宅購入"
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-              />
+        <CardContent className="grid gap-4">
+          {plan.accounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_200px_1fr_auto] md:items-end">
+              <div className="grid gap-2">
+                <Label htmlFor="event-label">ラベル</Label>
+                <Input
+                  id="event-label"
+                  placeholder="ボーナス / 住宅購入"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="event-account">口座</Label>
+                <Select value={accountId} onValueChange={setAccountId}>
+                  <SelectTrigger id="event-account" className="w-full">
+                    <SelectValue placeholder="選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plan.accounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="event-category">カテゴリ</Label>
+                <CategorySelect
+                  id="event-category"
+                  kinds={["income", "expense"]}
+                  value={categoryId}
+                  onChange={setCategoryId}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="event-month">年月</Label>
+                <MonthExprInput id="event-month" value={month} onChange={setMonth} />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="event-amount">金額 (円、負で支出)</Label>
+                <Input
+                  id="event-amount"
+                  type="number"
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </div>
+              <Button onClick={handleAdd} disabled={!canAdd}>
+                追加
+              </Button>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="event-account">口座</Label>
-              <Select value={accountId} onValueChange={setAccountId}>
-                <SelectTrigger id="event-account" className="w-full">
-                  <SelectValue placeholder="選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {plan.accounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="event-category">カテゴリ</Label>
-              <CategorySelect
-                id="event-category"
-                kinds={["income", "expense"]}
-                value={categoryId}
-                onChange={setCategoryId}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="event-month">年月</Label>
-              <MonthExprInput id="event-month" value={month} onChange={setMonth} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="event-amount">金額 (円、負で支出)</Label>
-              <Input
-                id="event-amount"
-                type="number"
-                inputMode="numeric"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <Button onClick={handleAdd} disabled={!canAdd}>
-              追加
-            </Button>
-          </div>
-        )}
-        {sortedEvents.length === 0 ? (
-          <p className="text-sm text-muted-foreground">まだイベントがありません。</p>
-        ) : (
-          <ul className="divide-y rounded-md border">
-            {sortedEvents.map((event) => {
-              const categoryLabel = event.categoryId
-                ? (() => {
-                    const c = categoryById.get(event.categoryId);
-                    return c ? categoryPath(c, categoryById) : "未分類";
-                  })()
-                : "未分類";
-              const isExpanded = expandedId === event.id;
-              return (
-                <li key={event.id} className="grid gap-3 px-4 py-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="grid text-sm">
-                      <span className="font-medium">
-                        {event.label}
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {describeMonth(event.month)} / {accountLabel.get(event.accountId) ?? "不明"} / {categoryLabel}
-                        </span>
-                        {isPersonAgeRef(event.month) ? (
-                          <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
-                            人物参照
+          )}
+          {sortedEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">まだイベントがありません。</p>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {sortedEvents.map((event) => {
+                const categoryLabel = event.categoryId
+                  ? (() => {
+                      const c = categoryById.get(event.categoryId);
+                      return c ? categoryPath(c, categoryById) : "未分類";
+                    })()
+                  : "未分類";
+                const isExpanded = expandedId === event.id;
+                return (
+                  <li key={event.id} className="grid gap-3 px-4 py-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="grid text-sm">
+                        <span className="font-medium">
+                          {event.label}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {describeMonth(event.month)} / {accountLabel.get(event.accountId) ?? "不明"} /{" "}
+                            {categoryLabel}
                           </span>
-                        ) : null}
-                      </span>
-                      <span className="font-mono tabular-nums">{formatYen(event.amount)}</span>
+                          {isPersonAgeRef(event.month) ? (
+                            <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
+                              人物参照
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="font-mono tabular-nums">{formatYen(event.amount)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : event.id)}>
+                          {isExpanded ? "閉じる" : "編集"}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => dispatch({ type: "event/remove", id: event.id })}
+                        >
+                          削除
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : event.id)}>
-                        {isExpanded ? "閉じる" : "編集"}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => dispatch({ type: "event/remove", id: event.id })}
-                      >
-                        削除
-                      </Button>
-                    </div>
-                  </div>
-                  {isExpanded ? <EventEditor event={event} /> : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
+                    {isExpanded ? <EventEditor event={event} /> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
       )}
     </Card>
   );

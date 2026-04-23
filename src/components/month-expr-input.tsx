@@ -39,9 +39,7 @@ export function MonthExprInput({ id, value, onChange, allowEmpty, className }: P
   const ref = value && isPersonAgeRef(value) ? value : null;
 
   // 最後に保持していた有効な literal。mode 切替で戻した際にここから復元する。
-  const lastLiteralRef = useRef<YearMonth | null>(
-    typeof value === "string" && isValidYearMonth(value) ? value : null,
-  );
+  const lastLiteralRef = useRef<YearMonth | null>(typeof value === "string" && isValidYearMonth(value) ? value : null);
   useEffect(() => {
     if (typeof value === "string" && isValidYearMonth(value)) {
       lastLiteralRef.current = value;
