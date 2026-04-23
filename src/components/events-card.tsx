@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category-select";
+import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { categoryPath } from "@/lib/categories";
 import { newId } from "@/lib/dsl/id";
-import { compareYearMonth, isValidYearMonth } from "@/lib/dsl/month";
-import type { Category, Ulid, YearMonth } from "@/lib/dsl/types";
+import { compareYearMonth, isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
+import { resolvePlan } from "@/lib/dsl/resolve";
+import type { Category, MonthExpr, Ulid, YearMonth } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { usePlan } from "@/state/plan-store";
 
@@ -17,7 +19,7 @@ export function EventsCard() {
   const [label, setLabel] = useState("");
   const [accountId, setAccountId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<Ulid | undefined>(undefined);
-  const [month, setMonth] = useState<string>("");
+  const [month, setMonth] = useState<MonthExpr | undefined>(undefined);
   const [amount, setAmount] = useState<string>("");
 
   const accountLabel = useMemo(() => {
@@ -26,25 +28,38 @@ export function EventsCard() {
     return map;
   }, [plan.accounts]);
 
+  const personLabel = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of plan.persons) map.set(p.id, p.label);
+    return map;
+  }, [plan.persons]);
+
   const categoryById = useMemo(() => {
     const map = new Map<Ulid, Category>();
     for (const c of plan.categories) map.set(c.id, c);
     return map;
   }, [plan.categories]);
 
+  const resolvedEventMonth = useMemo(() => {
+    const resolved = resolvePlan(plan);
+    const map = new Map<string, string>();
+    for (const ev of resolved.events) map.set(ev.id, ev.month);
+    return map;
+  }, [plan]);
+
   const sortedEvents = useMemo(() => {
-    return [...plan.events].sort((a, b) => compareYearMonth(a.month, b.month));
-  }, [plan.events]);
+    return [...plan.events].sort((a, b) => {
+      const am = (resolvedEventMonth.get(a.id) ?? "9999-12") as YearMonth;
+      const bm = (resolvedEventMonth.get(b.id) ?? "9999-12") as YearMonth;
+      return compareYearMonth(am, bm);
+    });
+  }, [plan.events, resolvedEventMonth]);
 
   const canAdd =
-    label.trim() !== "" &&
-    accountId !== "" &&
-    isValidYearMonth(month) &&
-    amount !== "" &&
-    !Number.isNaN(Number(amount));
+    label.trim() !== "" && accountId !== "" && month !== undefined && amount !== "" && !Number.isNaN(Number(amount));
 
   const handleAdd = () => {
-    if (!canAdd) return;
+    if (!canAdd || !month) return;
     dispatch({
       type: "event/add",
       event: {
@@ -52,13 +67,21 @@ export function EventsCard() {
         label: label.trim(),
         accountId,
         categoryId,
-        month: month as YearMonth,
+        month,
         amount: Number(amount),
       },
     });
     setLabel("");
     setAmount("");
+    setMonth(undefined);
     setCategoryId(undefined);
+  };
+
+  const describeMonth = (m: MonthExpr): string => {
+    if (typeof m === "string") return m;
+    const pl = personLabel.get(m.personId) ?? "?";
+    const resolved = resolveMonthExpr(m, plan.persons, plan.settings.yearStartMonth) ?? "解決不能";
+    return `${pl} ${m.age}歳の ${m.month}月 (${resolved})`;
   };
 
   return (
@@ -71,7 +94,7 @@ export function EventsCard() {
         {plan.accounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_140px_1fr_auto] md:items-end">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_200px_1fr_auto] md:items-end">
             <div className="grid gap-2">
               <Label htmlFor="event-label">ラベル</Label>
               <Input
@@ -102,7 +125,7 @@ export function EventsCard() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="event-month">年月</Label>
-              <Input id="event-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+              <MonthExprInput id="event-month" value={month} onChange={setMonth} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="event-amount">金額 (円、負で支出)</Label>
@@ -136,8 +159,13 @@ export function EventsCard() {
                     <span className="font-medium">
                       {event.label}
                       <span className="ml-2 text-xs text-muted-foreground">
-                        {event.month} / {accountLabel.get(event.accountId) ?? "不明"} / {categoryLabel}
+                        {describeMonth(event.month)} / {accountLabel.get(event.accountId) ?? "不明"} / {categoryLabel}
                       </span>
+                      {isPersonAgeRef(event.month) ? (
+                        <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
+                          人物参照
+                        </span>
+                      ) : null}
                     </span>
                     <span className="font-mono tabular-nums">{formatYen(event.amount)}</span>
                   </div>

@@ -1,19 +1,21 @@
 import { useMemo, useState } from "react";
+import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { newId } from "@/lib/dsl/id";
-import { compareYearMonth, isValidYearMonth } from "@/lib/dsl/month";
-import type { YearMonth } from "@/lib/dsl/types";
+import { compareYearMonth, isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
+import { resolvePlan } from "@/lib/dsl/resolve";
+import type { MonthExpr, YearMonth } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { usePlan } from "@/state/plan-store";
 
 export function SnapshotsCard() {
   const { plan, dispatch } = usePlan();
   const [accountId, setAccountId] = useState<string>("");
-  const [month, setMonth] = useState<string>("");
+  const [month, setMonth] = useState<MonthExpr | undefined>(undefined);
   const [balance, setBalance] = useState<string>("");
 
   const accountLabel = useMemo(() => {
@@ -22,24 +24,49 @@ export function SnapshotsCard() {
     return map;
   }, [plan.accounts]);
 
-  const sortedSnapshots = useMemo(() => {
-    return [...plan.snapshots].sort((a, b) => compareYearMonth(a.month, b.month));
-  }, [plan.snapshots]);
+  const personLabel = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of plan.persons) map.set(p.id, p.label);
+    return map;
+  }, [plan.persons]);
 
-  const canAdd = accountId !== "" && isValidYearMonth(month) && balance !== "" && !Number.isNaN(Number(balance));
+  const resolvedSnapshotMonth = useMemo(() => {
+    const resolved = resolvePlan(plan);
+    const map = new Map<string, string>();
+    for (const s of resolved.snapshots) map.set(s.id, s.month);
+    return map;
+  }, [plan]);
+
+  const sortedSnapshots = useMemo(() => {
+    return [...plan.snapshots].sort((a, b) => {
+      const am = (resolvedSnapshotMonth.get(a.id) ?? "9999-12") as YearMonth;
+      const bm = (resolvedSnapshotMonth.get(b.id) ?? "9999-12") as YearMonth;
+      return compareYearMonth(am, bm);
+    });
+  }, [plan.snapshots, resolvedSnapshotMonth]);
+
+  const canAdd = accountId !== "" && month !== undefined && balance !== "" && !Number.isNaN(Number(balance));
 
   const handleAdd = () => {
-    if (!canAdd) return;
+    if (!canAdd || !month) return;
     dispatch({
       type: "snapshot/add",
       snapshot: {
         id: newId(),
         accountId,
-        month: month as YearMonth,
+        month,
         balance: Number(balance),
       },
     });
     setBalance("");
+    setMonth(undefined);
+  };
+
+  const describeMonth = (m: MonthExpr): string => {
+    if (typeof m === "string") return m;
+    const pl = personLabel.get(m.personId) ?? "?";
+    const resolved = resolveMonthExpr(m, plan.persons, plan.settings.yearStartMonth) ?? "解決不能";
+    return `${pl} ${m.age}歳の ${m.month}月 (${resolved})`;
   };
 
   return (
@@ -52,7 +79,7 @@ export function SnapshotsCard() {
         {plan.accounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-[1fr_160px_1fr_auto] md:items-end">
+          <div className="grid gap-3 md:grid-cols-[1fr_200px_1fr_auto] md:items-end">
             <div className="grid gap-2">
               <Label htmlFor="snapshot-account">口座</Label>
               <Select value={accountId} onValueChange={setAccountId}>
@@ -70,7 +97,7 @@ export function SnapshotsCard() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="snapshot-month">年月</Label>
-              <Input id="snapshot-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+              <MonthExprInput id="snapshot-month" value={month} onChange={setMonth} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="snapshot-balance">残高 (円)</Label>
@@ -95,7 +122,10 @@ export function SnapshotsCard() {
               <li key={s.id} className="flex items-center justify-between gap-4 px-4 py-2">
                 <div className="grid text-sm">
                   <span className="font-medium">
-                    {s.month} / {accountLabel.get(s.accountId) ?? "不明"}
+                    {describeMonth(s.month)} / {accountLabel.get(s.accountId) ?? "不明"}
+                    {isPersonAgeRef(s.month) ? (
+                      <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">人物参照</span>
+                    ) : null}
                   </span>
                   <span className="font-mono tabular-nums">{formatYen(s.balance)}</span>
                 </div>

@@ -10,6 +10,7 @@ function seed(): Plan {
       planStartMonth: "2026-01",
       planEndMonth: "2076-12",
     },
+    persons: [],
     accounts: [
       { id: "a1", label: "現金", kind: "cash" },
       { id: "a2", label: "投資", kind: "investment" },
@@ -63,6 +64,7 @@ describe("planReducer", () => {
     const next: Plan = {
       schemaVersion: 1,
       settings: { yearStartMonth: 4, planStartMonth: "2027-04", planEndMonth: "2030-03" },
+      persons: [],
       accounts: [],
       snapshots: [],
       incomes: [],
@@ -252,5 +254,147 @@ describe("planReducer", () => {
     const snapshot = JSON.parse(JSON.stringify(state));
     planReducer(state, { type: "account/remove", id: "a1" });
     expect(state).toEqual(snapshot);
+  });
+
+  test("person/add / update / remove", () => {
+    const added = planReducer(seed(), {
+      type: "person/add",
+      person: { id: "p1", label: "自分", birthMonth: "1990-05" },
+    });
+    expect(added.persons).toHaveLength(1);
+
+    const updated = planReducer(added, { type: "person/update", id: "p1", patch: { birthMonth: "1991-06" } });
+    expect(updated.persons[0]?.birthMonth).toBe("1991-06");
+
+    const removed = planReducer(updated, { type: "person/remove", id: "p1" });
+    expect(removed.persons).toEqual([]);
+  });
+
+  test("person/remove は人物を参照する snapshot/event を削除する", () => {
+    const withPerson = planReducer(seed(), {
+      type: "person/add",
+      person: { id: "p1", label: "自分", birthMonth: "2000-01" },
+    });
+    const wired: Plan = {
+      ...withPerson,
+      snapshots: [
+        ...withPerson.snapshots,
+        {
+          id: "s-ref",
+          accountId: "a1",
+          month: { kind: "person-age", personId: "p1", age: 30, month: 1 },
+          balance: 999,
+        },
+      ],
+      events: [
+        ...withPerson.events,
+        {
+          id: "ev-ref",
+          label: "退職",
+          accountId: "a1",
+          month: { kind: "person-age", personId: "p1", age: 65, month: 4 },
+          amount: 100,
+        },
+      ],
+    };
+    const next = planReducer(wired, { type: "person/remove", id: "p1" });
+    expect(next.snapshots.find((s) => s.id === "s-ref")).toBeUndefined();
+    expect(next.events.find((e) => e.id === "ev-ref")).toBeUndefined();
+    // 人物を参照していない分は残る
+    expect(next.snapshots.find((s) => s.id === "s1")).toBeDefined();
+    expect(next.events.find((e) => e.id === "ev1")).toBeDefined();
+  });
+
+  test("person/remove は segment が人物を参照している income/expense/transfer を削除する", () => {
+    const withPerson = planReducer(seed(), {
+      type: "person/add",
+      person: { id: "p1", label: "子", birthMonth: "2020-04" },
+    });
+    const wired: Plan = {
+      ...withPerson,
+      incomes: [
+        ...withPerson.incomes,
+        {
+          id: "i-ref",
+          label: "児童手当",
+          accountId: "a1",
+          segments: [{ startMonth: { kind: "person-age", personId: "p1", age: 0, month: 4 }, amount: 10 }],
+        },
+      ],
+      expenses: [
+        ...withPerson.expenses,
+        {
+          id: "e-ref",
+          label: "学費",
+          accountId: "a1",
+          segments: [
+            { startMonth: "2030-04", endMonth: { kind: "person-age", personId: "p1", age: 18, month: 3 }, amount: 30 },
+          ],
+        },
+      ],
+      transfers: [
+        ...withPerson.transfers,
+        {
+          id: "t-ref",
+          label: "学資",
+          fromAccountId: "a1",
+          toAccountId: "a2",
+          segments: [{ startMonth: { kind: "person-age", personId: "p1", age: 0, month: 4 }, amount: 5 }],
+        },
+      ],
+    };
+    const next = planReducer(wired, { type: "person/remove", id: "p1" });
+    expect(next.incomes.find((i) => i.id === "i-ref")).toBeUndefined();
+    expect(next.expenses.find((e) => e.id === "e-ref")).toBeUndefined();
+    expect(next.transfers.find((t) => t.id === "t-ref")).toBeUndefined();
+    // 参照していないものは残る
+    expect(next.incomes.find((i) => i.id === "i1")).toBeDefined();
+    expect(next.expenses.find((e) => e.id === "e1")).toBeDefined();
+    expect(next.transfers.find((t) => t.id === "t1")).toBeDefined();
+  });
+
+  test("person/remove は liability.startMonth が人物を参照する account を削除し、紐づく snapshot も落とす", () => {
+    const withPerson = planReducer(seed(), {
+      type: "person/add",
+      person: { id: "p1", label: "自分", birthMonth: "1990-01" },
+    });
+    const wired: Plan = {
+      ...withPerson,
+      accounts: [
+        ...withPerson.accounts,
+        {
+          id: "loan",
+          label: "ローン",
+          kind: "liability",
+          liability: {
+            annualRate: 0.01,
+            scheduleKind: "equal-payment",
+            principal: 1000,
+            termMonths: 120,
+            startMonth: { kind: "person-age", personId: "p1", age: 40, month: 4 },
+          },
+        },
+      ],
+      snapshots: [...withPerson.snapshots, { id: "s-loan", accountId: "loan", month: "2030-04", balance: 1000 }],
+    };
+    const next = planReducer(wired, { type: "person/remove", id: "p1" });
+    expect(next.accounts.find((a) => a.id === "loan")).toBeUndefined();
+    expect(next.snapshots.find((s) => s.id === "s-loan")).toBeUndefined();
+  });
+
+  test("person/remove は settings の planStartMonth/planEndMonth が参照していたら解決済み値にスナップショット", () => {
+    const withPerson = planReducer(seed(), {
+      type: "person/add",
+      person: { id: "p1", label: "self", birthMonth: "2000-01" },
+    });
+    const wired: Plan = {
+      ...withPerson,
+      settings: {
+        ...withPerson.settings,
+        planStartMonth: { kind: "person-age", personId: "p1", age: 20, month: 1 },
+      },
+    };
+    const next = planReducer(wired, { type: "person/remove", id: "p1" });
+    expect(next.settings.planStartMonth).toBe("2020-01");
   });
 });

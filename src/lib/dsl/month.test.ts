@@ -3,15 +3,19 @@ import {
   addMonths,
   compareYearMonth,
   currentYearMonth,
+  isMonthExpr,
+  isPersonAgeRef,
   isValidYearMonth,
   iterateMonths,
   maxYearMonth,
   minYearMonth,
   monthDiff,
   parseYearMonth,
+  resolveMonthExpr,
+  resolvePersonAgeRef,
   toYearMonth,
 } from "./month";
-import type { YearMonth } from "./types";
+import type { Person, YearMonth } from "./types";
 
 describe("parseYearMonth", () => {
   test("年月をオブジェクトに分解する", () => {
@@ -140,5 +144,88 @@ describe("currentYearMonth", () => {
 
   test("1 月も 0 埋めされる", () => {
     expect(currentYearMonth(new Date(2027, 0, 1))).toBe("2027-01");
+  });
+});
+
+describe("isPersonAgeRef", () => {
+  test("正しい PersonAgeRef を受け入れる", () => {
+    expect(isPersonAgeRef({ kind: "person-age", personId: "p1", age: 50, month: 3 })).toBe(true);
+    expect(isPersonAgeRef({ kind: "person-age", personId: "p1", age: 0, month: 12 })).toBe(true);
+  });
+
+  test("不正な形式を拒否する", () => {
+    expect(isPersonAgeRef(null)).toBe(false);
+    expect(isPersonAgeRef("2026-04")).toBe(false);
+    expect(isPersonAgeRef({ kind: "other", personId: "p1", age: 1, month: 1 })).toBe(false);
+    expect(isPersonAgeRef({ kind: "person-age", personId: "p1", age: -1, month: 1 })).toBe(false);
+    expect(isPersonAgeRef({ kind: "person-age", personId: "p1", age: 1.5, month: 1 })).toBe(false);
+    expect(isPersonAgeRef({ kind: "person-age", personId: "p1", age: 1, month: 0 })).toBe(false);
+    expect(isPersonAgeRef({ kind: "person-age", personId: "p1", age: 1, month: 13 })).toBe(false);
+  });
+});
+
+describe("isMonthExpr", () => {
+  test("YearMonth 文字列と PersonAgeRef を受け入れる", () => {
+    expect(isMonthExpr("2026-04")).toBe(true);
+    expect(isMonthExpr({ kind: "person-age", personId: "p1", age: 0, month: 1 })).toBe(true);
+  });
+
+  test("不正な年月は拒否", () => {
+    expect(isMonthExpr("2026-13")).toBe(false);
+    expect(isMonthExpr({})).toBe(false);
+  });
+});
+
+describe("resolvePersonAgeRef", () => {
+  const person: Person = { id: "p1", label: "自分", birthMonth: "2000-08" };
+  const persons = [person];
+
+  test("2000-08 生まれ / yearStart=4 / 50歳の3月 → 2051-03", () => {
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "p1", age: 50, month: 3 }, persons, 4)).toBe("2051-03");
+  });
+
+  test("2000-08 生まれ / yearStart=1 / 50歳の3月 → 2050-03", () => {
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "p1", age: 50, month: 3 }, persons, 1)).toBe("2050-03");
+  });
+
+  test("2000-08 生まれ / yearStart=1 / 50歳の8月 → 2050-08 (誕生月ちょうど)", () => {
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "p1", age: 50, month: 8 }, persons, 1)).toBe("2050-08");
+  });
+
+  test("2000-08 生まれ / yearStart=8 (誕生月と同じ) / 50歳の8月 → 2050-08", () => {
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "p1", age: 50, month: 8 }, persons, 8)).toBe("2050-08");
+  });
+
+  test("2000-08 生まれ / yearStart=10 (誕生月より後) / 50歳の12月 → 2049-12", () => {
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "p1", age: 50, month: 12 }, persons, 10)).toBe(
+      "2049-12",
+    );
+  });
+
+  test("age=0 は誕生年度になる", () => {
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "p1", age: 0, month: 8 }, persons, 1)).toBe("2000-08");
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "p1", age: 0, month: 3 }, persons, 4)).toBe("2001-03");
+  });
+
+  test("存在しない personId は null", () => {
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "missing", age: 10, month: 1 }, persons, 1)).toBeNull();
+  });
+
+  test("未来の生年月でも計算できる", () => {
+    const future: Person = { id: "p2", label: "子", birthMonth: "2030-06" };
+    // 18歳の誕生月は 2048-06、yearStart=4 の年度は 2048-04〜2049-03
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "p2", age: 18, month: 4 }, [future], 4)).toBe("2048-04");
+    expect(resolvePersonAgeRef({ kind: "person-age", personId: "p2", age: 18, month: 3 }, [future], 4)).toBe("2049-03");
+  });
+});
+
+describe("resolveMonthExpr", () => {
+  test("YearMonth 文字列はそのまま返す", () => {
+    expect(resolveMonthExpr("2026-04", [], 1)).toBe("2026-04");
+  });
+
+  test("PersonAgeRef は resolvePersonAgeRef に委譲", () => {
+    const persons: Person[] = [{ id: "p1", label: "self", birthMonth: "2000-01" }];
+    expect(resolveMonthExpr({ kind: "person-age", personId: "p1", age: 25, month: 1 }, persons, 1)).toBe("2025-01");
   });
 });

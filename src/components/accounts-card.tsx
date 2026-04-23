@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
+import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { newId } from "@/lib/dsl/id";
-import { isValidYearMonth } from "@/lib/dsl/month";
 import {
   ACCOUNT_KIND_LABEL,
   ACCOUNT_KINDS,
@@ -15,7 +15,6 @@ import {
   type LiabilityParams,
   type LiabilityScheduleKind,
   type Ulid,
-  type YearMonth,
 } from "@/lib/dsl/types";
 import { usePlan } from "@/state/plan-store";
 
@@ -276,12 +275,12 @@ function LiabilityEditor({ account }: { account: Account }) {
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor={`li-${account.id}-start`}>返済開始月</Label>
-        <Input
+        <MonthExprInput
           id={`li-${account.id}-start`}
-          type="month"
           value={params.startMonth}
-          onChange={(e) => {
-            if (isValidYearMonth(e.target.value)) update({ startMonth: e.target.value as YearMonth });
+          onChange={(v) => {
+            if (!v) return;
+            update({ startMonth: v });
           }}
         />
       </div>

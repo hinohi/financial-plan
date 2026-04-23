@@ -1,16 +1,23 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from "react";
+import { isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
 import { emptyPlan } from "@/lib/dsl/plan";
 import type {
   Account,
   Category,
   Expense,
+  FlowSegment,
   Income,
+  LoanRateSegment,
+  LoanSpec,
+  MonthExpr,
   OneShotEvent,
+  Person,
   Plan,
   PlanSettings,
   Snapshot,
   Transfer,
   Ulid,
+  YearMonth,
 } from "@/lib/dsl/types";
 import {
   bootstrap,
@@ -48,7 +55,10 @@ export type PlanAction =
   | { type: "transfer/remove"; id: Ulid }
   | { type: "category/add"; category: Category }
   | { type: "category/update"; id: Ulid; patch: Partial<Omit<Category, "id">> }
-  | { type: "category/remove"; id: Ulid };
+  | { type: "category/remove"; id: Ulid }
+  | { type: "person/add"; person: Person }
+  | { type: "person/update"; id: Ulid; patch: Partial<Omit<Person, "id">> }
+  | { type: "person/remove"; id: Ulid };
 
 function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<Omit<T, "id">>): T[] {
   return list.map((item) => (item.id === id ? { ...item, ...patch } : item));
@@ -56,6 +66,83 @@ function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<
 
 function removeItem<T extends { id: Ulid }>(list: T[], id: Ulid): T[] {
   return list.filter((item) => item.id !== id);
+}
+
+function exprRefsPerson(expr: MonthExpr | undefined, personId: Ulid): boolean {
+  return !!expr && isPersonAgeRef(expr) && expr.personId === personId;
+}
+
+function segmentRefsPerson(segment: FlowSegment, personId: Ulid): boolean {
+  return exprRefsPerson(segment.startMonth, personId) || exprRefsPerson(segment.endMonth, personId);
+}
+
+function loanRateSegmentRefsPerson(rs: LoanRateSegment, personId: Ulid): boolean {
+  return exprRefsPerson(rs.startMonth, personId) || exprRefsPerson(rs.endMonth, personId);
+}
+
+function loanRefsPerson(loan: LoanSpec | undefined, personId: Ulid): boolean {
+  if (!loan) return false;
+  return loan.rateSegments.some((rs) => loanRateSegmentRefsPerson(rs, personId));
+}
+
+function resolveSettingsMonth(
+  expr: MonthExpr,
+  personId: Ulid,
+  persons: Person[],
+  yearStart: PlanSettings["yearStartMonth"],
+  fallback: YearMonth,
+): MonthExpr {
+  if (!exprRefsPerson(expr, personId)) return expr;
+  return resolveMonthExpr(expr, persons, yearStart) ?? fallback;
+}
+
+function cascadePersonRemoval(state: Plan, personId: Ulid): Plan {
+  const remainingPersons = removeItem(state.persons, personId);
+  const yearStart = state.settings.yearStartMonth;
+
+  const accounts = state.accounts.filter((a) => !(a.liability && exprRefsPerson(a.liability.startMonth, personId)));
+  const removedAccountIds = new Set<Ulid>();
+  for (const a of state.accounts) if (!accounts.some((x) => x.id === a.id)) removedAccountIds.add(a.id);
+
+  const snapshots = state.snapshots.filter(
+    (s) => !removedAccountIds.has(s.accountId) && !exprRefsPerson(s.month, personId),
+  );
+  const incomes = state.incomes.filter(
+    (i) => !removedAccountIds.has(i.accountId) && !i.segments.some((seg) => segmentRefsPerson(seg, personId)),
+  );
+  const expenses = state.expenses.filter(
+    (e) =>
+      !removedAccountIds.has(e.accountId) &&
+      !e.segments.some((seg) => segmentRefsPerson(seg, personId)) &&
+      !loanRefsPerson(e.loan, personId),
+  );
+  const events = state.events.filter(
+    (ev) => !removedAccountIds.has(ev.accountId) && !exprRefsPerson(ev.month, personId),
+  );
+  const transfers = state.transfers.filter(
+    (t) =>
+      !removedAccountIds.has(t.fromAccountId) &&
+      !removedAccountIds.has(t.toAccountId) &&
+      !t.segments.some((seg) => segmentRefsPerson(seg, personId)),
+  );
+
+  const settings: PlanSettings = {
+    ...state.settings,
+    planStartMonth: resolveSettingsMonth(state.settings.planStartMonth, personId, state.persons, yearStart, "1970-01"),
+    planEndMonth: resolveSettingsMonth(state.settings.planEndMonth, personId, state.persons, yearStart, "9999-12"),
+  };
+
+  return {
+    ...state,
+    settings,
+    persons: remainingPersons,
+    accounts,
+    snapshots,
+    incomes,
+    expenses,
+    events,
+    transfers,
+  };
 }
 
 export function planReducer(state: Plan, action: PlanAction): Plan {
@@ -125,6 +212,12 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
         events: clearRef(state.events),
       };
     }
+    case "person/add":
+      return { ...state, persons: [...state.persons, action.person] };
+    case "person/update":
+      return { ...state, persons: updateItem(state.persons, action.id, action.patch) };
+    case "person/remove":
+      return cascadePersonRemoval(state, action.id);
   }
 }
 

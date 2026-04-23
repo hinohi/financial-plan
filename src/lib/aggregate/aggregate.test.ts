@@ -18,6 +18,7 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
       planStartMonth: "2026-01",
       planEndMonth: "2026-03",
     },
+    persons: [],
     accounts: [{ id: "a1", label: "cash", kind: "cash" }],
     snapshots: [],
     incomes: [],

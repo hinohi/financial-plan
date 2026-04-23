@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { MonthExprInput } from "@/components/month-expr-input";
 import { SegmentList } from "@/components/segment-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { newId } from "@/lib/dsl/id";
-import { isValidYearMonth } from "@/lib/dsl/month";
-import type { FlowSegment, Transfer, YearMonth } from "@/lib/dsl/types";
+import type { FlowSegment, MonthExpr, Transfer } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { usePlan } from "@/state/plan-store";
 
@@ -18,8 +18,8 @@ export function TransfersCard() {
   const [fromAccountId, setFromAccountId] = useState<string>("");
   const [toAccountId, setToAccountId] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
-  const [startMonth, setStartMonth] = useState<string>(plan.settings.planStartMonth);
-  const [endMonth, setEndMonth] = useState<string>("");
+  const [startMonth, setStartMonth] = useState<MonthExpr | undefined>(plan.settings.planStartMonth);
+  const [endMonth, setEndMonth] = useState<MonthExpr | undefined>(undefined);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const accountLabel = useMemo(() => {
@@ -36,14 +36,13 @@ export function TransfersCard() {
     amount !== "" &&
     !Number.isNaN(Number(amount)) &&
     Number(amount) >= 0 &&
-    isValidYearMonth(startMonth) &&
-    (endMonth === "" || isValidYearMonth(endMonth));
+    startMonth !== undefined;
 
   const handleAdd = () => {
-    if (!canAdd) return;
+    if (!canAdd || !startMonth) return;
     const segment: FlowSegment = {
-      startMonth: startMonth as YearMonth,
-      endMonth: endMonth === "" ? undefined : (endMonth as YearMonth),
+      startMonth,
+      endMonth,
       amount: Number(amount),
     };
     dispatch({
@@ -52,7 +51,7 @@ export function TransfersCard() {
     });
     setLabel("");
     setAmount("");
-    setEndMonth("");
+    setEndMonth(undefined);
   };
 
   const twoAccounts = plan.accounts.length >= 2;
@@ -67,7 +66,7 @@ export function TransfersCard() {
         {!twoAccounts ? (
           <p className="text-sm text-muted-foreground">振替には 2 つ以上の口座が必要です。</p>
         ) : (
-          <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_140px_140px_140px_auto] lg:items-end">
+          <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_140px_200px_200px_auto] lg:items-end">
             <div className="grid gap-2">
               <Label htmlFor="transfer-label">ラベル</Label>
               <Input
@@ -119,16 +118,11 @@ export function TransfersCard() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="transfer-start">開始月</Label>
-              <Input
-                id="transfer-start"
-                type="month"
-                value={startMonth}
-                onChange={(e) => setStartMonth(e.target.value)}
-              />
+              <MonthExprInput id="transfer-start" value={startMonth} onChange={setStartMonth} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="transfer-end">終了月 (任意)</Label>
-              <Input id="transfer-end" type="month" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} />
+              <MonthExprInput id="transfer-end" value={endMonth} onChange={setEndMonth} allowEmpty />
             </div>
             <Button onClick={handleAdd} disabled={!canAdd}>
               追加
@@ -157,7 +151,8 @@ export function TransfersCard() {
                       <span className="text-xs text-muted-foreground">
                         {head ? (
                           <>
-                            {head.startMonth} 〜 {head.endMonth ?? "計画終了"} /{" "}
+                            {formatMonthExpr(head.startMonth)} 〜{" "}
+                            {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
                             {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
                             <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
                             {head.raise ? <span className="ml-1">(増減あり)</span> : null}
@@ -202,9 +197,14 @@ export function TransfersCard() {
   );
 }
 
+function formatMonthExpr(expr: MonthExpr): string {
+  if (typeof expr === "string") return expr;
+  return `参照(${expr.age}歳${expr.month}月)`;
+}
+
 type TransferEditorProps = {
   transfer: Transfer;
-  planStart: YearMonth;
+  planStart: MonthExpr;
 };
 
 function TransferEditor({ transfer, planStart }: TransferEditorProps) {

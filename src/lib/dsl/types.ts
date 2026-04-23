@@ -2,6 +2,23 @@ export type YearMonth = `${number}-${number}`;
 
 export type Ulid = string;
 
+export type Person = {
+  id: Ulid;
+  label: string;
+  birthMonth: YearMonth;
+};
+
+export type PersonAgeMonth = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+
+export type PersonAgeRef = {
+  kind: "person-age";
+  personId: Ulid;
+  age: number;
+  month: PersonAgeMonth;
+};
+
+export type MonthExpr = YearMonth | PersonAgeRef;
+
 export type AccountKind = "cash" | "investment" | "property" | "liability";
 
 export const ACCOUNT_KINDS: AccountKind[] = ["cash", "investment", "property", "liability"];
@@ -29,7 +46,7 @@ export type LiabilityParams = {
   scheduleKind: LiabilityScheduleKind;
   principal: number;
   termMonths: number;
-  startMonth: YearMonth;
+  startMonth: MonthExpr;
   paymentAccountId?: Ulid;
 };
 
@@ -49,7 +66,7 @@ export type Account = {
 export type Snapshot = {
   id: Ulid;
   accountId: Ulid;
-  month: YearMonth;
+  month: MonthExpr;
   balance: number;
 };
 
@@ -67,8 +84,8 @@ export type FlowRaise = {
 };
 
 export type FlowSegment = {
-  startMonth: YearMonth;
-  endMonth?: YearMonth;
+  startMonth: MonthExpr;
+  endMonth?: MonthExpr;
   amount: number;
   intervalMonths?: number;
   raise?: FlowRaise;
@@ -83,8 +100,8 @@ export type Income = {
 };
 
 export type LoanRateSegment = {
-  startMonth: YearMonth;
-  endMonth?: YearMonth;
+  startMonth: MonthExpr;
+  endMonth?: MonthExpr;
   annualRate: number;
 };
 
@@ -107,7 +124,7 @@ export type OneShotEvent = {
   label: string;
   accountId: Ulid;
   categoryId?: Ulid;
-  month: YearMonth;
+  month: MonthExpr;
   amount: number;
 };
 
@@ -141,13 +158,14 @@ export type YearStartMonth = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 
 export type PlanSettings = {
   yearStartMonth: YearStartMonth;
-  planStartMonth: YearMonth;
-  planEndMonth: YearMonth;
+  planStartMonth: MonthExpr;
+  planEndMonth: MonthExpr;
 };
 
 export type Plan = {
   schemaVersion: 1;
   settings: PlanSettings;
+  persons: Person[];
   accounts: Account[];
   snapshots: Snapshot[];
   incomes: Income[];

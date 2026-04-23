@@ -16,6 +16,7 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
       planStartMonth: "2026-01",
       planEndMonth: "2026-12",
     },
+    persons: [],
     accounts: [{ id: "a1", label: "cash", kind: "cash" }],
     snapshots: [],
     incomes: [],
@@ -547,6 +548,7 @@ describe("investment interest", () => {
       events: [],
       transfers: [],
       categories: [],
+      persons: [],
     };
     const entries = interpret(plan);
     // 2026-01: 月初 0 → 利息なし、snapshot で 10000 に上書き
@@ -577,6 +579,7 @@ describe("investment interest", () => {
       events: [],
       transfers: [],
       categories: [],
+      persons: [],
     };
     expect(interpret(plan).some((e) => e.sourceKind === "interest")).toBe(false);
   });
@@ -601,6 +604,7 @@ describe("property depreciation", () => {
       events: [],
       transfers: [],
       categories: [],
+      persons: [],
     };
     const entries = interpret(plan);
     const rate = monthlyCompoundRate(-0.05);
@@ -669,6 +673,7 @@ describe("liability schedule", () => {
       events: [],
       transfers: [],
       categories: [],
+      persons: [],
     };
     const entries = interpret(plan);
     const jan = entries.filter((e) => e.month === "2026-01");
@@ -705,6 +710,7 @@ describe("liability schedule", () => {
       events: [],
       transfers: [],
       categories: [],
+      persons: [],
     };
     expect(interpret(plan).some((e) => e.sourceKind === "loan_interest" || e.sourceKind === "loan_principal")).toBe(
       false,
@@ -746,6 +752,7 @@ describe("loan expense", () => {
       events: [],
       transfers: [],
       categories: [],
+      persons: [],
     };
     const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
     expect(entries).toHaveLength(12);
@@ -776,6 +783,7 @@ describe("loan expense", () => {
       events: [],
       transfers: [],
       categories: [],
+      persons: [],
     };
     const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
     expect(entries.map((e) => e.month)).toEqual(["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]);
@@ -806,6 +814,7 @@ describe("loan expense", () => {
       events: [],
       transfers: [],
       categories: [],
+      persons: [],
     };
     const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
     expect(entries).toHaveLength(24);
@@ -817,6 +826,64 @@ describe("loan expense", () => {
     const total = entries.reduce((acc, e) => acc + e.amount, 0);
     // 返済総額は元本より大きい (利息分)
     expect(-total).toBeGreaterThan(2_400_000);
+  });
+
+  test("人物参照を含む segment は resolve されて計算される", () => {
+    const plan: Plan = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2030-12" },
+      persons: [{ id: "p1", label: "子", birthMonth: "2020-04" }],
+      accounts: [{ id: "a1", label: "cash", kind: "cash" }],
+      snapshots: [],
+      incomes: [],
+      expenses: [
+        {
+          id: "e-kid",
+          label: "教育費",
+          accountId: "a1",
+          // age 8 の 4月 (yearStart=1 なので 2028-04) から age 10 の 3月 (2030-03) まで
+          segments: [
+            {
+              startMonth: { kind: "person-age", personId: "p1", age: 8, month: 4 },
+              endMonth: { kind: "person-age", personId: "p1", age: 10, month: 3 },
+              amount: 100,
+            },
+          ],
+        },
+      ],
+      events: [],
+      transfers: [],
+      categories: [],
+    };
+    const entries = interpret(plan).filter((e) => e.sourceId === "e-kid");
+    const months = entries.map((e) => e.month);
+    expect(months[0]).toBe("2028-04");
+    expect(months[months.length - 1]).toBe("2030-03");
+  });
+
+  test("人物参照の解決不能な snapshot は除外される", () => {
+    const plan: Plan = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2030-12" },
+      persons: [],
+      accounts: [{ id: "a1", label: "cash", kind: "cash" }],
+      snapshots: [
+        { id: "s-ok", accountId: "a1", month: "2026-02", balance: 111 },
+        {
+          id: "s-dangling",
+          accountId: "a1",
+          month: { kind: "person-age", personId: "missing", age: 30, month: 1 },
+          balance: 999,
+        },
+      ],
+      incomes: [],
+      expenses: [],
+      events: [],
+      transfers: [],
+      categories: [],
+    };
+    const entries = interpret(plan);
+    expect(entries.map((e) => e.sourceId)).toEqual(["s-ok"]);
   });
 
   test("loan を持つ expense は segments より loan 側が優先される", () => {
@@ -841,6 +908,7 @@ describe("loan expense", () => {
       events: [],
       transfers: [],
       categories: [],
+      persons: [],
     };
     const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
     expect(entries).toHaveLength(3);

@@ -105,6 +105,45 @@ describe("hydratePlan", () => {
     };
     expect(hydratePlan(raw)).toBeNull();
   });
+
+  test("persons を持つ Plan は復元される", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      persons: [{ id: "p1", label: "自分", birthMonth: "1990-05" }],
+      accounts: [],
+      snapshots: [],
+      incomes: [],
+      expenses: [],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.persons).toEqual([{ id: "p1", label: "自分", birthMonth: "1990-05" }]);
+  });
+
+  test("persons 欠損時は空配列で補完される (後方互換)", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      accounts: [],
+      snapshots: [],
+      incomes: [],
+      expenses: [],
+    };
+    expect(hydratePlan(raw)?.persons).toEqual([]);
+  });
+
+  test("persons の不正な要素は除外される", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      persons: [{ id: "p1", label: "ok", birthMonth: "1990-05" }, { id: "p2", label: "no-birth" }, null, "broken"],
+      accounts: [],
+      snapshots: [],
+      incomes: [],
+      expenses: [],
+    };
+    expect(hydratePlan(raw)?.persons).toEqual([{ id: "p1", label: "ok", birthMonth: "1990-05" }]);
+  });
 });
 
 describe("hydrateRegistry", () => {
@@ -142,6 +181,7 @@ describe("export/import round-trip", () => {
     const plan = {
       schemaVersion: 1 as const,
       settings: { yearStartMonth: 1 as const, planStartMonth: "2026-01" as const, planEndMonth: "2026-12" as const },
+      persons: [],
       accounts: [{ id: "a1", label: "現金", kind: "cash" as const }],
       snapshots: [],
       incomes: [],

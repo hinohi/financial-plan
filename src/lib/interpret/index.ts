@@ -1,21 +1,19 @@
 import { addMonths, compareYearMonth, iterateMonths, maxYearMonth, minYearMonth, monthDiff } from "@/lib/dsl/month";
-import type {
-  Account,
-  Expense,
-  FlowSegment,
-  LiabilityParams,
-  LoanSpec,
-  MonthlyEntry,
-  Plan,
-  Ulid,
-  YearMonth,
-} from "@/lib/dsl/types";
+import {
+  type ResolvedExpense,
+  type ResolvedFlowSegment,
+  type ResolvedLiabilityParams,
+  type ResolvedLoanSpec,
+  type ResolvedPlan,
+  resolvePlan,
+} from "@/lib/dsl/resolve";
+import type { Account, MonthlyEntry, Plan, Ulid, YearMonth } from "@/lib/dsl/types";
 
 function withinPlan(month: YearMonth, start: YearMonth, end: YearMonth): boolean {
   return compareYearMonth(month, start) >= 0 && compareYearMonth(month, end) <= 0;
 }
 
-export function computeSegmentAmount(segment: FlowSegment, month: YearMonth): number {
+export function computeSegmentAmount(segment: ResolvedFlowSegment, month: YearMonth): number {
   const base = segment.amount;
   const raise = segment.raise;
   if (!raise || raise.everyMonths <= 0) return base;
@@ -31,7 +29,7 @@ function emitSegment(
   accountId: Ulid,
   sourceId: Ulid,
   sourceKind: "income" | "expense",
-  segment: FlowSegment,
+  segment: ResolvedFlowSegment,
   planStart: YearMonth,
   planEnd: YearMonth,
   sign: 1 | -1,
@@ -62,7 +60,7 @@ function emitTransferSegment(
   fromAccountId: Ulid,
   toAccountId: Ulid,
   sourceId: Ulid,
-  segment: FlowSegment,
+  segment: ResolvedFlowSegment,
   planStart: YearMonth,
   planEnd: YearMonth,
   out: MonthlyEntry[],
@@ -90,7 +88,7 @@ export function monthlyCompoundRate(annualRate: number): number {
 
 type LiabilityPayment = { interest: number; principal: number };
 
-export function computeLiabilitySchedule(params: LiabilityParams): Map<YearMonth, LiabilityPayment> {
+export function computeLiabilitySchedule(params: ResolvedLiabilityParams): Map<YearMonth, LiabilityPayment> {
   const { annualRate, scheduleKind, principal, termMonths, startMonth } = params;
   const result = new Map<YearMonth, LiabilityPayment>();
   if (principal <= 0 || termMonths <= 0) return result;
@@ -128,7 +126,12 @@ export function loanMonthlyPayment(balance: number, monthlyRate: number, remaini
   return (balance * monthlyRate * pow) / (pow - 1);
 }
 
-function emitLoanExpense(expense: Expense, planStart: YearMonth, planEnd: YearMonth, out: MonthlyEntry[]): void {
+function emitLoanExpense(
+  expense: ResolvedExpense,
+  planStart: YearMonth,
+  planEnd: YearMonth,
+  out: MonthlyEntry[],
+): void {
   const loan = expense.loan;
   if (!loan || loan.rateSegments.length === 0 || loan.principal <= 0) return;
   const sorted = [...loan.rateSegments].sort((a, b) => compareYearMonth(a.startMonth, b.startMonth));
@@ -175,11 +178,11 @@ function emitLoanExpense(expense: Expense, planStart: YearMonth, planEnd: YearMo
   }
 }
 
-function isLoanExpense(expense: Expense): boolean {
+function isLoanExpense(expense: ResolvedExpense): boolean {
   return !!expense.loan && expense.loan.rateSegments.length > 0 && expense.loan.principal > 0;
 }
 
-export function loanTotalMonths(loan: LoanSpec): number {
+export function loanTotalMonths(loan: ResolvedLoanSpec): number {
   if (loan.rateSegments.length === 0) return 0;
   const sorted = [...loan.rateSegments].sort((a, b) => compareYearMonth(a.startMonth, b.startMonth));
   const start = sorted[0]?.startMonth;
@@ -188,7 +191,7 @@ export function loanTotalMonths(loan: LoanSpec): number {
   return monthDiff(start, end) + 1;
 }
 
-function buildStaticEntriesByMonth(plan: Plan): Map<YearMonth, MonthlyEntry[]> {
+function buildStaticEntriesByMonth(plan: ResolvedPlan): Map<YearMonth, MonthlyEntry[]> {
   const { planStartMonth: start, planEndMonth: end } = plan.settings;
   const tmp: MonthlyEntry[] = [];
 
@@ -249,7 +252,7 @@ function buildStaticEntriesByMonth(plan: Plan): Map<YearMonth, MonthlyEntry[]> {
 
 function computeDynamicEntriesForMonth(
   month: YearMonth,
-  plan: Plan,
+  plan: ResolvedPlan,
   balances: Record<Ulid, number>,
   liabilitySchedules: Map<Ulid, Map<YearMonth, LiabilityPayment>>,
 ): MonthlyEntry[] {
@@ -357,7 +360,7 @@ function computeDynamicEntriesForMonth(
 }
 
 function segmentActiveOnMonth(
-  segment: FlowSegment,
+  segment: ResolvedFlowSegment,
   month: YearMonth,
   planStart: YearMonth,
   planEnd: YearMonth,
@@ -374,7 +377,7 @@ function segmentActiveOnMonth(
   return true;
 }
 
-function buildLiabilitySchedules(plan: Plan): Map<Ulid, Map<YearMonth, LiabilityPayment>> {
+function buildLiabilitySchedules(plan: ResolvedPlan): Map<Ulid, Map<YearMonth, LiabilityPayment>> {
   const map = new Map<Ulid, Map<YearMonth, LiabilityPayment>>();
   for (const account of plan.accounts) {
     if (account.kind !== "liability" || !account.liability) continue;
@@ -394,16 +397,17 @@ function applyMonthEntries(balances: Record<Ulid, number>, entries: MonthlyEntry
 }
 
 export function interpret(plan: Plan): MonthlyEntry[] {
-  const { planStartMonth: start, planEndMonth: end } = plan.settings;
-  const staticByMonth = buildStaticEntriesByMonth(plan);
-  const liabilitySchedules = buildLiabilitySchedules(plan);
+  const resolved = resolvePlan(plan);
+  const { planStartMonth: start, planEndMonth: end } = resolved.settings;
+  const staticByMonth = buildStaticEntriesByMonth(resolved);
+  const liabilitySchedules = buildLiabilitySchedules(resolved);
 
   const balances: Record<Ulid, number> = {};
-  for (const account of plan.accounts) balances[account.id] = 0;
+  for (const account of resolved.accounts) balances[account.id] = 0;
 
   const entries: MonthlyEntry[] = [];
   for (const month of iterateMonths(start, end)) {
-    const dynamic = computeDynamicEntriesForMonth(month, plan, balances, liabilitySchedules);
+    const dynamic = computeDynamicEntriesForMonth(month, resolved, balances, liabilitySchedules);
     const staticEntries = staticByMonth.get(month) ?? [];
     const monthEntries = [...staticEntries, ...dynamic];
     for (const e of monthEntries) entries.push(e);

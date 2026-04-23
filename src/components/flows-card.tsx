@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category-select";
 import { LoanEditor } from "@/components/loan-editor";
+import { MonthExprInput } from "@/components/month-expr-input";
 import { SegmentList } from "@/components/segment-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,8 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { categoryPath } from "@/lib/categories";
 import { newId } from "@/lib/dsl/id";
-import { isValidYearMonth } from "@/lib/dsl/month";
-import type { Category, Expense, FlowSegment, Income, LoanSpec, Ulid, YearMonth } from "@/lib/dsl/types";
+import type { Category, Expense, FlowSegment, Income, LoanSpec, MonthExpr, Ulid } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { type PlanAction, usePlan } from "@/state/plan-store";
 
@@ -59,8 +59,8 @@ export function FlowsCard({ kind }: FlowsCardProps) {
   const [accountId, setAccountId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<Ulid | undefined>(undefined);
   const [amount, setAmount] = useState<string>("");
-  const [startMonth, setStartMonth] = useState<string>(plan.settings.planStartMonth);
-  const [endMonth, setEndMonth] = useState<string>("");
+  const [startMonth, setStartMonth] = useState<MonthExpr | undefined>(plan.settings.planStartMonth);
+  const [endMonth, setEndMonth] = useState<MonthExpr | undefined>(undefined);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const accountLabel = useMemo(() => {
@@ -80,20 +80,19 @@ export function FlowsCard({ kind }: FlowsCardProps) {
     accountId !== "" &&
     amount !== "" &&
     !Number.isNaN(Number(amount)) &&
-    isValidYearMonth(startMonth) &&
-    (endMonth === "" || isValidYearMonth(endMonth));
+    startMonth !== undefined;
 
   const handleAdd = () => {
-    if (!canAdd) return;
+    if (!canAdd || !startMonth) return;
     const segment: FlowSegment = {
-      startMonth: startMonth as YearMonth,
-      endMonth: endMonth === "" ? undefined : (endMonth as YearMonth),
+      startMonth,
+      endMonth,
       amount: Number(amount),
     };
     dispatch(config.addAction({ id: newId(), label: label.trim(), accountId, categoryId, segments: [segment] }));
     setLabel("");
     setAmount("");
-    setEndMonth("");
+    setEndMonth(undefined);
     setCategoryId(undefined);
   };
 
@@ -107,7 +106,7 @@ export function FlowsCard({ kind }: FlowsCardProps) {
         {plan.accounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_140px_140px_140px_auto] lg:items-end">
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_140px_200px_200px_auto] lg:items-end">
             <div className="grid gap-2">
               <Label htmlFor={`${kind}-label`}>ラベル</Label>
               <Input
@@ -148,16 +147,11 @@ export function FlowsCard({ kind }: FlowsCardProps) {
             </div>
             <div className="grid gap-2">
               <Label htmlFor={`${kind}-start`}>開始月</Label>
-              <Input
-                id={`${kind}-start`}
-                type="month"
-                value={startMonth}
-                onChange={(e) => setStartMonth(e.target.value)}
-              />
+              <MonthExprInput id={`${kind}-start`} value={startMonth} onChange={setStartMonth} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor={`${kind}-end`}>終了月 (任意)</Label>
-              <Input id={`${kind}-end`} type="month" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} />
+              <MonthExprInput id={`${kind}-end`} value={endMonth} onChange={setEndMonth} allowEmpty />
             </div>
             <Button onClick={handleAdd} disabled={!canAdd}>
               追加
@@ -197,14 +191,17 @@ export function FlowsCard({ kind }: FlowsCardProps) {
                         {loan ? (
                           <>
                             ローン / 元本 <span className="font-mono tabular-nums">{formatYen(loan.principal)}</span>
-                            {loanHead ? ` / ${loanHead.startMonth} 〜 ${loanLast?.endMonth ?? "計画終了"}` : null}
+                            {loanHead
+                              ? ` / ${formatMonthExpr(loanHead.startMonth)} 〜 ${loanLast?.endMonth ? formatMonthExpr(loanLast.endMonth) : "計画終了"}`
+                              : null}
                             {loan.rateSegments.length > 1 ? (
                               <span className="ml-1">金利 {loan.rateSegments.length} 区間</span>
                             ) : null}
                           </>
                         ) : head ? (
                           <>
-                            {head.startMonth} 〜 {head.endMonth ?? "計画終了"} /{" "}
+                            {formatMonthExpr(head.startMonth)} 〜{" "}
+                            {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
                             {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
                             <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
                             {head.raise ? <span className="ml-1">(昇給あり)</span> : null}
@@ -256,10 +253,15 @@ export function FlowsCard({ kind }: FlowsCardProps) {
   );
 }
 
+function formatMonthExpr(expr: MonthExpr): string {
+  if (typeof expr === "string") return expr;
+  return `参照(${expr.age}歳${expr.month}月)`;
+}
+
 type FlowEditorProps = {
   flow: Flow;
   kind: FlowKind;
-  planStart: YearMonth;
+  planStart: MonthExpr;
   onLabelChange: (value: string) => void;
   onAccountChange: (value: string) => void;
   onCategoryChange: (value: Ulid | undefined) => void;

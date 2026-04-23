@@ -1,4 +1,5 @@
 import { iterateMonths, parseYearMonth } from "@/lib/dsl/month";
+import { type ResolvedPlan, resolvePlan } from "@/lib/dsl/resolve";
 import type { Category, CategoryKind, MonthlyEntry, Plan, Ulid, YearMonth, YearStartMonth } from "@/lib/dsl/types";
 
 export type AggregatePeriod = "monthly" | "yearly";
@@ -68,7 +69,7 @@ function groupEntries(entries: MonthlyEntry[]): PerMonthPerAccount {
   return map;
 }
 
-function computeMonthlyBalances(plan: Plan, entries: MonthlyEntry[]): BalancePoint[] {
+function computeMonthlyBalances(plan: ResolvedPlan, entries: MonthlyEntry[]): BalancePoint[] {
   const grouped = groupEntries(entries);
   const balances: Record<Ulid, number> = {};
   for (const account of plan.accounts) balances[account.id] = 0;
@@ -113,11 +114,12 @@ function toYearly(monthly: BalancePoint[], yearStartMonth: YearStartMonth): Bala
 }
 
 export function aggregate(plan: Plan, entries: MonthlyEntry[], options: { period: AggregatePeriod }): ViewData {
-  const monthly = computeMonthlyBalances(plan, entries);
+  const resolved = resolvePlan(plan);
+  const monthly = computeMonthlyBalances(resolved, entries);
   if (options.period === "monthly") {
     return { period: "monthly", points: monthly };
   }
-  return { period: "yearly", points: toYearly(monthly, plan.settings.yearStartMonth) };
+  return { period: "yearly", points: toYearly(monthly, resolved.settings.yearStartMonth) };
 }
 
 function topAncestor(categoryId: Ulid, byId: Map<Ulid, Category>): Ulid {
@@ -178,20 +180,21 @@ export function aggregateFlow(
   entries: MonthlyEntry[],
   options: { kind: CategoryKind; period: AggregatePeriod; group: CategoryGroup },
 ): FlowViewData {
+  const resolved = resolvePlan(plan);
   const { kind, period, group } = options;
   const byId = new Map<Ulid, Category>();
-  for (const c of plan.categories) byId.set(c.id, c);
+  for (const c of resolved.categories) byId.set(c.id, c);
 
   const periodBuckets = new Map<string, { month: YearMonth; byCategory: Map<string, number> }>();
-  for (const month of iterateMonths(plan.settings.planStartMonth, plan.settings.planEndMonth)) {
-    const periodKey = flowPeriodLabel(month, period, plan.settings.yearStartMonth);
+  for (const month of iterateMonths(resolved.settings.planStartMonth, resolved.settings.planEndMonth)) {
+    const periodKey = flowPeriodLabel(month, period, resolved.settings.yearStartMonth);
     if (!periodBuckets.has(periodKey)) periodBuckets.set(periodKey, { month, byCategory: new Map() });
   }
 
   const usedKeys = new Set<string>();
   for (const entry of entries) {
     if (!matchesKind(entry, kind)) continue;
-    const periodKey = flowPeriodLabel(entry.month, period, plan.settings.yearStartMonth);
+    const periodKey = flowPeriodLabel(entry.month, period, resolved.settings.yearStartMonth);
     const bucket = periodBuckets.get(periodKey);
     if (!bucket) continue;
     const categoryKey = resolveCategoryKey(entry, kind, byId, group);
@@ -203,7 +206,7 @@ export function aggregateFlow(
   }
 
   const categoryOrder: string[] = [];
-  for (const category of plan.categories) {
+  for (const category of resolved.categories) {
     if (category.kind !== kind) continue;
     if (group === "top" && category.parentId) continue;
     if (usedKeys.has(category.id)) categoryOrder.push(category.id);

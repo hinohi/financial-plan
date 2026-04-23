@@ -1,15 +1,23 @@
+import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addMonths, isValidYearMonth } from "@/lib/dsl/month";
-import type { LoanRateSegment, LoanSpec, YearMonth } from "@/lib/dsl/types";
+import { addMonths } from "@/lib/dsl/month";
+import type { LoanRateSegment, LoanSpec, MonthExpr } from "@/lib/dsl/types";
 
 type LoanEditorProps = {
   idPrefix: string;
   loan: LoanSpec;
-  planStart: YearMonth;
+  planStart: MonthExpr;
   onChange: (next: LoanSpec) => void;
 };
+
+function defaultNextStart(prev: LoanRateSegment | undefined, planStart: MonthExpr): MonthExpr {
+  if (prev?.endMonth !== undefined && typeof prev.endMonth === "string") {
+    return addMonths(prev.endMonth, 1);
+  }
+  return planStart;
+}
 
 export function LoanEditor({ idPrefix, loan, planStart, onChange }: LoanEditorProps) {
   const update = (patch: Partial<LoanSpec>) => onChange({ ...loan, ...patch });
@@ -22,7 +30,7 @@ export function LoanEditor({ idPrefix, loan, planStart, onChange }: LoanEditorPr
 
   const addRateSegment = () => {
     const last = loan.rateSegments.at(-1);
-    const startMonth: YearMonth = last?.endMonth ? addMonths(last.endMonth, 1) : planStart;
+    const startMonth = defaultNextStart(last, planStart);
     update({ rateSegments: [...loan.rateSegments, { startMonth, annualRate: 0 }] });
   };
 
@@ -58,16 +66,16 @@ export function LoanEditor({ idPrefix, loan, planStart, onChange }: LoanEditorPr
             <li
               // biome-ignore lint/suspicious/noArrayIndexKey: segments are identified positionally
               key={index}
-              className="grid gap-3 rounded-md border border-border/70 bg-muted/20 p-3 md:grid-cols-[160px_160px_1fr_auto] md:items-end"
+              className="grid gap-3 rounded-md border border-border/70 bg-muted/20 p-3 md:grid-cols-[220px_220px_1fr_auto] md:items-end"
             >
               <div className="grid gap-1.5">
                 <Label htmlFor={`${idPrefix}-rate-${index}-start`}>開始月</Label>
-                <Input
+                <MonthExprInput
                   id={`${idPrefix}-rate-${index}-start`}
-                  type="month"
                   value={seg.startMonth}
-                  onChange={(e) => {
-                    if (isValidYearMonth(e.target.value)) updateRateSegment(index, { startMonth: e.target.value });
+                  onChange={(v) => {
+                    if (!v) return;
+                    updateRateSegment(index, { startMonth: v });
                   }}
                 />
               </div>
@@ -75,14 +83,11 @@ export function LoanEditor({ idPrefix, loan, planStart, onChange }: LoanEditorPr
                 <Label htmlFor={`${idPrefix}-rate-${index}-end`}>
                   終了月 {index === loan.rateSegments.length - 1 ? "(ローン終了)" : "(任意)"}
                 </Label>
-                <Input
+                <MonthExprInput
                   id={`${idPrefix}-rate-${index}-end`}
-                  type="month"
-                  value={seg.endMonth ?? ""}
-                  onChange={(e) => {
-                    if (e.target.value === "") updateRateSegment(index, { endMonth: undefined });
-                    else if (isValidYearMonth(e.target.value)) updateRateSegment(index, { endMonth: e.target.value });
-                  }}
+                  value={seg.endMonth}
+                  onChange={(v) => updateRateSegment(index, { endMonth: v })}
+                  allowEmpty
                 />
               </div>
               <div className="grid gap-1.5">

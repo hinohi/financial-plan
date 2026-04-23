@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { addMonths } from "./month";
 import { emptyPlan } from "./plan";
+import type { YearMonth } from "./types";
 
 describe("emptyPlan", () => {
   test("schemaVersion と空配列を持つ", () => {
@@ -20,7 +21,7 @@ describe("emptyPlan", () => {
   test("計画終了月は開始月の 50 年後", () => {
     const now = new Date(2026, 3, 22);
     const plan = emptyPlan(now);
-    expect(plan.settings.planEndMonth).toBe(addMonths(plan.settings.planStartMonth, 12 * 50));
+    expect(plan.settings.planEndMonth).toBe(addMonths(plan.settings.planStartMonth as YearMonth, 12 * 50));
   });
 
   test("yearStartMonth の既定は 1", () => {

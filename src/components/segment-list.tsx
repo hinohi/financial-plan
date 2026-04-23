@@ -1,17 +1,25 @@
+import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { addMonths, isValidYearMonth } from "@/lib/dsl/month";
-import type { FlowRaise, FlowRaiseKind, FlowSegment, YearMonth } from "@/lib/dsl/types";
+import { addMonths } from "@/lib/dsl/month";
+import type { FlowRaise, FlowRaiseKind, FlowSegment, MonthExpr } from "@/lib/dsl/types";
 
 type SegmentListProps = {
   idPrefix: string;
   segments: FlowSegment[];
-  planStart: YearMonth;
+  planStart: MonthExpr;
   showInterval?: boolean;
   onChange: (next: FlowSegment[]) => void;
 };
+
+function defaultNextStart(prev: FlowSegment | undefined, planStart: MonthExpr): MonthExpr {
+  if (prev?.endMonth !== undefined && typeof prev.endMonth === "string") {
+    return addMonths(prev.endMonth, 1);
+  }
+  return planStart;
+}
 
 export function SegmentList({ idPrefix, segments, planStart, showInterval, onChange }: SegmentListProps) {
   const updateSegment = (index: number, patch: Partial<FlowSegment>) => {
@@ -24,7 +32,7 @@ export function SegmentList({ idPrefix, segments, planStart, showInterval, onCha
 
   const addSegment = () => {
     const last = segments.at(-1);
-    const startMonth: YearMonth = last?.endMonth ? addMonths(last.endMonth, 1) : planStart;
+    const startMonth = defaultNextStart(last, planStart);
     onChange([...segments, { startMonth, amount: 0 }]);
   };
 
@@ -68,13 +76,13 @@ function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: Seg
     onChange({ amount: Number(value) });
   };
 
-  const setStart = (value: string) => {
-    if (isValidYearMonth(value)) onChange({ startMonth: value });
+  const setStart = (value: MonthExpr | undefined) => {
+    if (!value) return;
+    onChange({ startMonth: value });
   };
 
-  const setEnd = (value: string) => {
-    if (value === "") onChange({ endMonth: undefined });
-    else if (isValidYearMonth(value)) onChange({ endMonth: value });
+  const setEnd = (value: MonthExpr | undefined) => {
+    onChange({ endMonth: value });
   };
 
   const toggleRaise = (enabled: boolean) => {
@@ -92,24 +100,14 @@ function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: Seg
 
   return (
     <li className="grid gap-3 rounded-md border border-border/70 bg-muted/20 p-3">
-      <div className="grid gap-3 md:grid-cols-[160px_160px_1fr_auto] md:items-end">
+      <div className="grid gap-3 md:grid-cols-[220px_220px_1fr_auto] md:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${idPrefix}-start`}>開始月</Label>
-          <Input
-            id={`${idPrefix}-start`}
-            type="month"
-            value={segment.startMonth}
-            onChange={(e) => setStart(e.target.value)}
-          />
+          <MonthExprInput id={`${idPrefix}-start`} value={segment.startMonth} onChange={setStart} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${idPrefix}-end`}>終了月 (任意)</Label>
-          <Input
-            id={`${idPrefix}-end`}
-            type="month"
-            value={segment.endMonth ?? ""}
-            onChange={(e) => setEnd(e.target.value)}
-          />
+          <MonthExprInput id={`${idPrefix}-end`} value={segment.endMonth} onChange={setEnd} allowEmpty />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${idPrefix}-amount`}>

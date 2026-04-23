@@ -1,6 +1,6 @@
 import { newId } from "@/lib/dsl/id";
 import { emptyPlan } from "@/lib/dsl/plan";
-import type { Plan, Ulid } from "@/lib/dsl/types";
+import type { Person, Plan, Ulid } from "@/lib/dsl/types";
 
 const REGISTRY_KEY = "fp.registry.v1";
 const PLAN_KEY_PREFIX = "fp.plans.";
@@ -32,6 +32,18 @@ function nowIso(now: Date = new Date()): string {
   return now.toISOString();
 }
 
+function hydratePersons(raw: unknown): Person[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Person[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const p = v as Partial<Person>;
+    if (typeof p.id !== "string" || typeof p.label !== "string" || typeof p.birthMonth !== "string") continue;
+    out.push({ id: p.id, label: p.label, birthMonth: p.birthMonth });
+  }
+  return out;
+}
+
 export function hydratePlan(raw: unknown): Plan | null {
   if (!raw || typeof raw !== "object") return null;
   const p = raw as Partial<Plan> & Record<string, unknown>;
@@ -40,6 +52,7 @@ export function hydratePlan(raw: unknown): Plan | null {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     settings: p.settings,
+    persons: hydratePersons(p.persons),
     accounts: p.accounts ?? [],
     snapshots: p.snapshots ?? [],
     incomes: p.incomes ?? [],

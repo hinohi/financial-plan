@@ -4,6 +4,7 @@ import { CategoriesCard } from "@/components/categories-card";
 import { EventsCard } from "@/components/events-card";
 import { FlowChart } from "@/components/flow-chart";
 import { FlowsCard } from "@/components/flows-card";
+import { PersonsCard } from "@/components/persons-card";
 import { PlansCard } from "@/components/plans-card";
 import { SettingsCard } from "@/components/settings-card";
 import { SnapshotsCard } from "@/components/snapshots-card";
@@ -21,6 +22,7 @@ export function App() {
         </header>
         <PlansCard />
         <SettingsCard />
+        <PersonsCard />
         <BalanceChart />
         <FlowChart kind="income" />
         <FlowChart kind="expense" />
