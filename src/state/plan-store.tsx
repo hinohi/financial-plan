@@ -58,7 +58,12 @@ export type PlanAction =
   | { type: "category/remove"; id: Ulid }
   | { type: "person/add"; person: Person }
   | { type: "person/update"; id: Ulid; patch: Partial<Omit<Person, "id">> }
-  | { type: "person/remove"; id: Ulid };
+  | { type: "person/remove"; id: Ulid }
+  | { type: "persons/reorder"; order: Ulid[] }
+  | { type: "accounts/reorder"; order: Ulid[] }
+  | { type: "incomes/reorder"; order: Ulid[] }
+  | { type: "expenses/reorder"; order: Ulid[] }
+  | { type: "transfers/reorder"; order: Ulid[] };
 
 function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<Omit<T, "id">>): T[] {
   return list.map((item) => (item.id === id ? { ...item, ...patch } : item));
@@ -66,6 +71,22 @@ function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<
 
 function removeItem<T extends { id: Ulid }>(list: T[], id: Ulid): T[] {
   return list.filter((item) => item.id !== id);
+}
+
+function reorderItems<T extends { id: Ulid }>(list: T[], order: Ulid[]): T[] {
+  const byId = new Map<Ulid, T>();
+  for (const item of list) byId.set(item.id, item);
+  const out: T[] = [];
+  for (const id of order) {
+    const item = byId.get(id);
+    if (item) {
+      out.push(item);
+      byId.delete(id);
+    }
+  }
+  // order に現れなかった要素は末尾に元の順で付ける
+  for (const item of list) if (byId.has(item.id)) out.push(item);
+  return out;
 }
 
 function exprRefsPerson(expr: MonthExpr | undefined, personId: Ulid): boolean {
@@ -218,6 +239,16 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
       return { ...state, persons: updateItem(state.persons, action.id, action.patch) };
     case "person/remove":
       return cascadePersonRemoval(state, action.id);
+    case "persons/reorder":
+      return { ...state, persons: reorderItems(state.persons, action.order) };
+    case "accounts/reorder":
+      return { ...state, accounts: reorderItems(state.accounts, action.order) };
+    case "incomes/reorder":
+      return { ...state, incomes: reorderItems(state.incomes, action.order) };
+    case "expenses/reorder":
+      return { ...state, expenses: reorderItems(state.expenses, action.order) };
+    case "transfers/reorder":
+      return { ...state, transfers: reorderItems(state.transfers, action.order) };
   }
 }
 

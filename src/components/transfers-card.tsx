@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { SegmentList } from "@/components/segment-list";
+import { SortableList } from "@/components/sortable-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommittedInput } from "@/components/ui/committed-input";
@@ -133,42 +134,47 @@ export function TransfersCard() {
         {plan.transfers.length === 0 ? (
           <p className="text-sm text-muted-foreground">振替がありません。</p>
         ) : (
-          <ul className="divide-y rounded-md border">
-            {plan.transfers.map((transfer) => {
+          <SortableList
+            items={plan.transfers}
+            onReorder={(order) => dispatch({ type: "transfers/reorder", order })}
+            renderItem={(transfer, handle) => {
               const head = transfer.segments[0];
               const extra = transfer.segments.length - 1;
               const isExpanded = expandedId === transfer.id;
               return (
-                <li key={transfer.id} className="grid gap-3 px-4 py-3">
+                <div className="grid gap-3 px-2 py-3">
                   <div className="flex items-center justify-between gap-4">
-                    <div className="grid text-sm">
-                      <span className="font-medium">
-                        {transfer.label}
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {accountLabel.get(transfer.fromAccountId) ?? "不明"} →{" "}
-                          {accountLabel.get(transfer.toAccountId) ?? "不明"}
+                    <div className="flex items-start gap-2">
+                      {handle}
+                      <div className="grid text-sm">
+                        <span className="font-medium">
+                          {transfer.label}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {accountLabel.get(transfer.fromAccountId) ?? "不明"} →{" "}
+                            {accountLabel.get(transfer.toAccountId) ?? "不明"}
+                          </span>
                         </span>
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {head ? (
-                          <>
-                            {formatMonthExpr(head.startMonth)} 〜{" "}
-                            {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
-                            {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
-                            <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
-                            {head.raise ? <span className="ml-1">(増減あり)</span> : null}
-                            {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
-                            {transfer.minFromBalance !== undefined ? (
-                              <span className="ml-1">
-                                / 最低残高{" "}
-                                <span className="font-mono tabular-nums">{formatYen(transfer.minFromBalance)}</span>
-                              </span>
-                            ) : null}
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </span>
+                        <span className="text-xs text-muted-foreground">
+                          {head ? (
+                            <>
+                              {formatMonthExpr(head.startMonth)} 〜{" "}
+                              {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
+                              {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
+                              <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
+                              {head.raise ? <span className="ml-1">(増減あり)</span> : null}
+                              {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
+                              {transfer.minFromBalance !== undefined ? (
+                                <span className="ml-1">
+                                  / 最低残高{" "}
+                                  <span className="font-mono tabular-nums">{formatYen(transfer.minFromBalance)}</span>
+                                </span>
+                              ) : null}
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -187,11 +193,13 @@ export function TransfersCard() {
                       </Button>
                     </div>
                   </div>
-                  {isExpanded ? <TransferEditor transfer={transfer} planStart={plan.settings.planStartMonth} /> : null}
-                </li>
+                  {isExpanded ? (
+                    <TransferEditor transfer={transfer} planStart={plan.settings.planStartMonth} />
+                  ) : null}
+                </div>
               );
-            })}
-          </ul>
+            }}
+          />
         )}
       </CardContent>
     </Card>

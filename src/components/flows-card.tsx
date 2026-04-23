@@ -3,6 +3,7 @@ import { CategorySelect } from "@/components/category-select";
 import { LoanEditor } from "@/components/loan-editor";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { SegmentList } from "@/components/segment-list";
+import { SortableList } from "@/components/sortable-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommittedInput } from "@/components/ui/committed-input";
@@ -30,6 +31,7 @@ type FlowConfig = {
   addAction: (flow: Flow) => PlanAction;
   updateAction: (id: Ulid, patch: Partial<Omit<Flow, "id">>) => PlanAction;
   removeAction: (id: Ulid) => PlanAction;
+  reorderAction: (order: Ulid[]) => PlanAction;
 };
 
 const CONFIG: Record<FlowKind, FlowConfig> = {
@@ -40,6 +42,7 @@ const CONFIG: Record<FlowKind, FlowConfig> = {
     addAction: (flow) => ({ type: "income/add", income: flow as Income }),
     updateAction: (id, patch) => ({ type: "income/update", id, patch: patch as Partial<Omit<Income, "id">> }),
     removeAction: (id) => ({ type: "income/remove", id }),
+    reorderAction: (order) => ({ type: "incomes/reorder", order }),
   },
   expense: {
     title: "支出",
@@ -48,6 +51,7 @@ const CONFIG: Record<FlowKind, FlowConfig> = {
     addAction: (flow) => ({ type: "expense/add", expense: flow as Expense }),
     updateAction: (id, patch) => ({ type: "expense/update", id, patch: patch as Partial<Omit<Expense, "id">> }),
     removeAction: (id) => ({ type: "expense/remove", id }),
+    reorderAction: (order) => ({ type: "expenses/reorder", order }),
   },
 };
 
@@ -162,8 +166,10 @@ export function FlowsCard({ kind }: FlowsCardProps) {
         {flows.length === 0 ? (
           <p className="text-sm text-muted-foreground">項目がありません。</p>
         ) : (
-          <ul className="divide-y rounded-md border">
-            {flows.map((flow) => {
+          <SortableList
+            items={flows}
+            onReorder={(order) => dispatch(config.reorderAction(order))}
+            renderItem={(flow, handle) => {
               const head = flow.segments[0];
               const extra = flow.segments.length - 1;
               const isExpanded = expandedId === flow.id;
@@ -171,47 +177,50 @@ export function FlowsCard({ kind }: FlowsCardProps) {
               const loanHead = loan?.rateSegments[0];
               const loanLast = loan?.rateSegments[loan.rateSegments.length - 1];
               return (
-                <li key={flow.id} className="grid gap-3 px-4 py-3">
+                <div className="grid gap-3 px-2 py-3">
                   <div className="flex items-center justify-between gap-4">
-                    <div className="grid text-sm">
-                      <span className="font-medium">
-                        {flow.label}
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          → {accountLabel.get(flow.accountId) ?? "不明"}
+                    <div className="flex items-start gap-2">
+                      {handle}
+                      <div className="grid text-sm">
+                        <span className="font-medium">
+                          {flow.label}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            → {accountLabel.get(flow.accountId) ?? "不明"}
+                          </span>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {flow.categoryId
+                              ? (() => {
+                                  const c = categoryById.get(flow.categoryId);
+                                  return c ? `／ ${categoryPath(c, categoryById)}` : "／ 未分類";
+                                })()
+                              : "／ 未分類"}
+                          </span>
                         </span>
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {flow.categoryId
-                            ? (() => {
-                                const c = categoryById.get(flow.categoryId);
-                                return c ? `／ ${categoryPath(c, categoryById)}` : "／ 未分類";
-                              })()
-                            : "／ 未分類"}
+                        <span className="text-xs text-muted-foreground">
+                          {loan ? (
+                            <>
+                              ローン / 元本 <span className="font-mono tabular-nums">{formatYen(loan.principal)}</span>
+                              {loanHead
+                                ? ` / ${formatMonthExpr(loanHead.startMonth)} 〜 ${loanLast?.endMonth ? formatMonthExpr(loanLast.endMonth) : "計画終了"}`
+                                : null}
+                              {loan.rateSegments.length > 1 ? (
+                                <span className="ml-1">金利 {loan.rateSegments.length} 区間</span>
+                              ) : null}
+                            </>
+                          ) : head ? (
+                            <>
+                              {formatMonthExpr(head.startMonth)} 〜{" "}
+                              {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
+                              {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
+                              <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
+                              {head.raise ? <span className="ml-1">(昇給あり)</span> : null}
+                              {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
+                            </>
+                          ) : (
+                            "—"
+                          )}
                         </span>
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {loan ? (
-                          <>
-                            ローン / 元本 <span className="font-mono tabular-nums">{formatYen(loan.principal)}</span>
-                            {loanHead
-                              ? ` / ${formatMonthExpr(loanHead.startMonth)} 〜 ${loanLast?.endMonth ? formatMonthExpr(loanLast.endMonth) : "計画終了"}`
-                              : null}
-                            {loan.rateSegments.length > 1 ? (
-                              <span className="ml-1">金利 {loan.rateSegments.length} 区間</span>
-                            ) : null}
-                          </>
-                        ) : head ? (
-                          <>
-                            {formatMonthExpr(head.startMonth)} 〜{" "}
-                            {head.endMonth ? formatMonthExpr(head.endMonth) : "計画終了"} /{" "}
-                            {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
-                            <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
-                            {head.raise ? <span className="ml-1">(昇給あり)</span> : null}
-                            {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : flow.id)}>
@@ -244,10 +253,10 @@ export function FlowsCard({ kind }: FlowsCardProps) {
                       }
                     />
                   ) : null}
-                </li>
+                </div>
               );
-            })}
-          </ul>
+            }}
+          />
         )}
       </CardContent>
     </Card>

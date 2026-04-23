@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SortableList } from "@/components/sortable-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommittedInput } from "@/components/ui/committed-input";
@@ -54,9 +55,12 @@ export function PersonsCard() {
         {plan.persons.length === 0 ? (
           <p className="text-sm text-muted-foreground">まだ人物が登録されていません。</p>
         ) : (
-          <ul className="divide-y rounded-md border">
-            {plan.persons.map((person) => (
-              <li key={person.id} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_160px_auto] md:items-center">
+          <SortableList
+            items={plan.persons}
+            onReorder={(order) => dispatch({ type: "persons/reorder", order })}
+            renderItem={(person, handle) => (
+              <div className="grid gap-3 px-2 py-3 md:grid-cols-[32px_1fr_160px_auto] md:items-center">
+                {handle}
                 <CommittedInput
                   aria-label="ラベル"
                   value={person.label}
@@ -86,9 +90,9 @@ export function PersonsCard() {
                 >
                   削除
                 </Button>
-              </li>
-            ))}
-          </ul>
+              </div>
+            )}
+          />
         )}
       </CardContent>
     </Card>

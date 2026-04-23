@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { MonthExprInput } from "@/components/month-expr-input";
+import { SortableList } from "@/components/sortable-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommittedInput } from "@/components/ui/committed-input";
@@ -71,18 +72,23 @@ export function AccountsCard() {
         {plan.accounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">口座を追加してください。</p>
         ) : (
-          <ul className="divide-y rounded-md border">
-            {plan.accounts.map((account) => {
+          <SortableList
+            items={plan.accounts}
+            onReorder={(order) => dispatch({ type: "accounts/reorder", order })}
+            renderItem={(account, handle) => {
               const isExpanded = expandedId === account.id;
               return (
-                <li key={account.id} className="grid gap-3 px-4 py-3">
+                <div className="grid gap-3 px-2 py-3">
                   <div className="flex items-center justify-between gap-4">
-                    <div className="grid">
-                      <span className="font-medium">{account.label}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {ACCOUNT_KIND_LABEL[account.kind]}
-                        {summaryForAccount(account)}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      {handle}
+                      <div className="grid">
+                        <span className="font-medium">{account.label}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {ACCOUNT_KIND_LABEL[account.kind]}
+                          {summaryForAccount(account)}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -102,10 +108,10 @@ export function AccountsCard() {
                     </div>
                   </div>
                   {isExpanded ? <AccountEditor account={account} /> : null}
-                </li>
+                </div>
               );
-            })}
-          </ul>
+            }}
+          />
         )}
       </CardContent>
     </Card>
