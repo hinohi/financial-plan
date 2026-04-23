@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { SegmentList } from "@/components/segment-list";
 import { SortableList } from "@/components/sortable-list";
@@ -8,6 +9,7 @@ import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
 import type { FlowSegment, MonthExpr, Transfer } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
@@ -57,13 +59,20 @@ export function TransfersCard() {
   };
 
   const twoAccounts = plan.accounts.length >= 2;
+  const [collapsed, toggleCollapsed] = useCollapse("transfers");
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>口座間振替</CardTitle>
-        <CardDescription>出金元から入金先へ資金を移す。合計残高は変わらない</CardDescription>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle>口座間振替</CardTitle>
+            <CardDescription>出金元から入金先へ資金を移す。合計残高は変わらない</CardDescription>
+          </div>
+          <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="口座間振替" />
+        </div>
       </CardHeader>
+      {collapsed ? null : (
       <CardContent className="grid gap-4">
         {!twoAccounts ? (
           <p className="text-sm text-muted-foreground">振替には 2 つ以上の口座が必要です。</p>
@@ -202,6 +211,7 @@ export function TransfersCard() {
           />
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

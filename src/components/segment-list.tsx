@@ -101,7 +101,7 @@ function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: Seg
 
   return (
     <li className="grid gap-3 rounded-md border border-border/70 bg-muted/20 p-3">
-      <div className="grid gap-3 md:grid-cols-[220px_220px_1fr_auto] md:items-end">
+      <div className="grid gap-3 md:grid-cols-[minmax(260px,1fr)_minmax(260px,1fr)_140px_auto] md:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${idPrefix}-start`}>開始月</Label>
           <MonthExprInput id={`${idPrefix}-start`} value={segment.startMonth} onChange={setStart} />

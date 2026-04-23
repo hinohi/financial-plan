@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
+import { CollapseToggle } from "@/components/collapse-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCollapse } from "@/hooks/use-collapse";
 import { categoryPath, isDescendantOf, sortedCategoriesByPath } from "@/lib/categories";
 import { newId } from "@/lib/dsl/id";
 import { CATEGORY_KIND_LABEL, CATEGORY_KINDS, type Category, type CategoryKind, type Ulid } from "@/lib/dsl/types";
@@ -41,12 +43,20 @@ export function CategoriesCard() {
     setNewParentId(NONE_VALUE);
   };
 
+  const [collapsed, toggleCollapsed] = useCollapse("categories");
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>カテゴリ</CardTitle>
-        <CardDescription>収入・支出・イベントを分類する。親カテゴリを指定すると階層になる</CardDescription>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle>カテゴリ</CardTitle>
+            <CardDescription>収入・支出・イベントを分類する。親カテゴリを指定すると階層になる</CardDescription>
+          </div>
+          <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="カテゴリ" />
+        </div>
       </CardHeader>
+      {collapsed ? null : (
       <CardContent className="grid gap-4">
         <div className="grid gap-3 md:grid-cols-[160px_1fr_1fr_auto] md:items-end">
           <div className="grid gap-2">
@@ -105,6 +115,7 @@ export function CategoriesCard() {
           ))}
         </div>
       </CardContent>
+      )}
     </Card>
   );
 }

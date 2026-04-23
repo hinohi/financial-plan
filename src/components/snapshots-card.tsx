@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CommittedInput } from "@/components/ui/committed-input";
+import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
 import { compareYearMonth, isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
 import { resolvePlan } from "@/lib/dsl/resolve";
@@ -71,12 +73,20 @@ export function SnapshotsCard() {
     return `${pl} ${m.age}歳の ${m.month}月 (${resolved})`;
   };
 
+  const [collapsed, toggleCollapsed] = useCollapse("snapshots");
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>資産断面</CardTitle>
-        <CardDescription>ある月時点の口座残高（事実）</CardDescription>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle>資産断面</CardTitle>
+            <CardDescription>ある月時点の口座残高（事実）</CardDescription>
+          </div>
+          <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="資産断面" />
+        </div>
       </CardHeader>
+      {collapsed ? null : (
       <CardContent className="grid gap-4">
         {plan.accounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
@@ -156,6 +166,7 @@ export function SnapshotsCard() {
           </ul>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

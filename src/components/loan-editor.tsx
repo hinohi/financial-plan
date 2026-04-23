@@ -67,7 +67,7 @@ export function LoanEditor({ idPrefix, loan, planStart, onChange }: LoanEditorPr
             <li
               // biome-ignore lint/suspicious/noArrayIndexKey: segments are identified positionally
               key={index}
-              className="grid gap-3 rounded-md border border-border/70 bg-muted/20 p-3 md:grid-cols-[220px_220px_1fr_auto] md:items-end"
+              className="grid gap-3 rounded-md border border-border/70 bg-muted/20 p-3 md:grid-cols-[minmax(260px,1fr)_minmax(260px,1fr)_140px_auto] md:items-end"
             >
               <div className="grid gap-1.5">
                 <Label htmlFor={`${idPrefix}-rate-${index}-start`}>開始月</Label>

@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
+import { CollapseToggle } from "@/components/collapse-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCollapse } from "@/hooks/use-collapse";
 import { usePlanRegistry } from "@/state/plan-store";
 
 type ImportMode = "new" | "overwrite";
@@ -72,13 +74,20 @@ export function PlansCard() {
   };
 
   const canDelete = registry.plans.length > 1;
+  const [collapsed, toggleCollapsed] = useCollapse("plans");
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>プラン</CardTitle>
-        <CardDescription>複数のプランを保持・切り替え・エクスポート / インポートできる</CardDescription>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle>プラン</CardTitle>
+            <CardDescription>複数のプランを保持・切り替え・エクスポート / インポートできる</CardDescription>
+          </div>
+          <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="プラン" />
+        </div>
       </CardHeader>
+      {collapsed ? null : (
       <CardContent className="grid gap-4">
         <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
           <div className="grid gap-2">
@@ -194,6 +203,7 @@ export function PlansCard() {
           最終更新: {currentMeta ? new Date(currentMeta.updatedAt).toLocaleString() : "—"}
         </p>
       </CardContent>
+      )}
     </Card>
   );
 }

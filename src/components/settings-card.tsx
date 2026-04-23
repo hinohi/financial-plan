@@ -1,7 +1,9 @@
+import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCollapse } from "@/hooks/use-collapse";
 import type { MonthExpr, YearStartMonth } from "@/lib/dsl/types";
 import { usePlan } from "@/state/plan-store";
 
@@ -26,12 +28,20 @@ export function SettingsCard() {
     dispatch({ type: "settings/update", patch: { yearStartMonth: num } });
   };
 
+  const [collapsed, toggleCollapsed] = useCollapse("settings");
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>設定</CardTitle>
-        <CardDescription>プランの期間と年度の区切り月</CardDescription>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle>設定</CardTitle>
+            <CardDescription>プランの期間と年度の区切り月</CardDescription>
+          </div>
+          <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="設定" />
+        </div>
       </CardHeader>
+      {collapsed ? null : (
       <CardContent>
         <div className="grid gap-4 md:grid-cols-3">
           <div className="grid gap-2">
@@ -59,6 +69,7 @@ export function SettingsCard() {
           </div>
         </div>
       </CardContent>
+      )}
     </Card>
   );
 }

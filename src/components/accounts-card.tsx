@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { SortableList } from "@/components/sortable-list";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
 import {
   ACCOUNT_KIND_LABEL,
@@ -27,6 +29,7 @@ export function AccountsCard() {
   const [label, setLabel] = useState("");
   const [kind, setKind] = useState<AccountKind>("cash");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [collapsed, toggleCollapsed] = useCollapse("accounts");
 
   const handleAdd = () => {
     const trimmed = label.trim();
@@ -39,11 +42,17 @@ export function AccountsCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>口座</CardTitle>
-        <CardDescription>
-          すべてのフローはここを通る。投資・負債・不動産は固有パラメータで運用益/返済/減価が自動計算される
-        </CardDescription>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle>口座</CardTitle>
+            <CardDescription>
+              すべてのフローはここを通る。投資・負債・不動産は固有パラメータで運用益/返済/減価が自動計算される
+            </CardDescription>
+          </div>
+          <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="口座" />
+        </div>
       </CardHeader>
+      {collapsed ? null : (
       <CardContent className="grid gap-4">
         <div className="grid gap-3 md:grid-cols-[1fr_200px_auto] md:items-end">
           <div className="grid gap-2">
@@ -114,6 +123,7 @@ export function AccountsCard() {
           />
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

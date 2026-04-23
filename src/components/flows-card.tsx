@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category-select";
+import { CollapseToggle } from "@/components/collapse-toggle";
 import { LoanEditor } from "@/components/loan-editor";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { SegmentList } from "@/components/segment-list";
@@ -10,6 +11,7 @@ import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCollapse } from "@/hooks/use-collapse";
 import { categoryPath } from "@/lib/categories";
 import { newId } from "@/lib/dsl/id";
 import type { Category, Expense, FlowSegment, Income, LoanSpec, MonthExpr, Ulid } from "@/lib/dsl/types";
@@ -101,12 +103,20 @@ export function FlowsCard({ kind }: FlowsCardProps) {
     setCategoryId(undefined);
   };
 
+  const [collapsed, toggleCollapsed] = useCollapse(`flows-${kind}`);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{config.title}</CardTitle>
-        <CardDescription>{config.description}</CardDescription>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle>{config.title}</CardTitle>
+            <CardDescription>{config.description}</CardDescription>
+          </div>
+          <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label={config.title} />
+        </div>
       </CardHeader>
+      {collapsed ? null : (
       <CardContent className="grid gap-4">
         {plan.accounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">先に口座を追加してください。</p>
@@ -259,6 +269,7 @@ export function FlowsCard({ kind }: FlowsCardProps) {
           />
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

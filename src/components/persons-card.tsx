@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { CollapseToggle } from "@/components/collapse-toggle";
 import { SortableList } from "@/components/sortable-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
 import { isValidYearMonth } from "@/lib/dsl/month";
 import type { YearMonth } from "@/lib/dsl/types";
@@ -27,12 +29,20 @@ export function PersonsCard() {
     setBirthMonth("");
   };
 
+  const [collapsed, toggleCollapsed] = useCollapse("persons");
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>人物</CardTitle>
-        <CardDescription>家族などの年齢を基準に年月を指定できるようになる。生年月は未来でも可</CardDescription>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle>人物</CardTitle>
+            <CardDescription>家族などの年齢を基準に年月を指定できるようになる。生年月は未来でも可</CardDescription>
+          </div>
+          <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="人物" />
+        </div>
       </CardHeader>
+      {collapsed ? null : (
       <CardContent className="grid gap-4">
         <div className="grid gap-3 md:grid-cols-[1fr_160px_auto] md:items-end">
           <div className="grid gap-2">
@@ -95,6 +105,7 @@ export function PersonsCard() {
           />
         )}
       </CardContent>
+      )}
     </Card>
   );
 }
