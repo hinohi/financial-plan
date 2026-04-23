@@ -75,13 +75,14 @@ bun install
 ### コマンド
 
 ```bash
-bun dev         # 開発サーバ (hot reload)
-bun start       # 本番モードで起動
-bun run build   # 静的ビルド (dist/ に出力)
-bun test        # 純関数パイプライン (dsl/interpret/aggregate/reducer/storage) のユニットテスト
-bun run lint    # biome check (読み取りのみ)
-bun run lint:fix# biome check --write (自動修正)
-bun run format  # biome format --write
+bun dev           # 開発サーバ (hot reload)
+bun start         # 本番モードで起動
+bun run build     # 静的ビルド (dist/ に出力)
+bun test          # 純関数パイプライン (dsl/interpret/aggregate/reducer/storage) のユニットテスト
+bun run typecheck # tsc --noEmit による型チェック (src 配下)
+bun run lint      # biome check (読み取りのみ)
+bun run lint:fix  # biome check --write (自動修正)
+bun run format    # biome format --write
 ```
 
 ### 新しい shadcn コンポーネントの追加

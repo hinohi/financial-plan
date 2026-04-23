@@ -33,7 +33,7 @@ class MemoryStorage {
 }
 
 const memory = new MemoryStorage();
-const globalRef = globalThis as { window?: { localStorage: MemoryStorage } };
+const globalRef = globalThis as unknown as { window?: { localStorage: MemoryStorage } };
 
 beforeAll(() => {
   globalRef.window = { localStorage: memory };

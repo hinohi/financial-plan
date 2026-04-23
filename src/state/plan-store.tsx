@@ -50,7 +50,7 @@ export type PlanAction =
   | { type: "category/update"; id: Ulid; patch: Partial<Omit<Category, "id">> }
   | { type: "category/remove"; id: Ulid };
 
-function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<T>): T[] {
+function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<Omit<T, "id">>): T[] {
   return list.map((item) => (item.id === id ? { ...item, ...patch } : item));
 }
 
