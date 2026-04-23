@@ -1,5 +1,15 @@
 import { addMonths, compareYearMonth, iterateMonths, maxYearMonth, minYearMonth, monthDiff } from "@/lib/dsl/month";
-import type { Account, FlowSegment, LiabilityParams, MonthlyEntry, Plan, Ulid, YearMonth } from "@/lib/dsl/types";
+import type {
+  Account,
+  Expense,
+  FlowSegment,
+  LiabilityParams,
+  LoanSpec,
+  MonthlyEntry,
+  Plan,
+  Ulid,
+  YearMonth,
+} from "@/lib/dsl/types";
 
 function withinPlan(month: YearMonth, start: YearMonth, end: YearMonth): boolean {
   return compareYearMonth(month, start) >= 0 && compareYearMonth(month, end) <= 0;
@@ -43,7 +53,7 @@ function emitSegment(
       sourceId,
       sourceKind,
       categoryId,
-      amount: computeSegmentAmount(segment, month) * sign,
+      amount: Math.trunc(computeSegmentAmount(segment, month) * sign),
     });
   }
 }
@@ -66,7 +76,8 @@ function emitTransferSegment(
       const delta = monthDiff(segment.startMonth, month);
       if (delta < 0 || delta % interval !== 0) continue;
     }
-    const amount = computeSegmentAmount(segment, month);
+    const amount = Math.trunc(computeSegmentAmount(segment, month));
+    if (amount === 0) continue;
     out.push({ month, accountId: fromAccountId, sourceId, sourceKind: "transfer", amount: -amount });
     out.push({ month, accountId: toAccountId, sourceId, sourceKind: "transfer", amount });
   }
@@ -110,6 +121,73 @@ export function computeLiabilitySchedule(params: LiabilityParams): Map<YearMonth
   return result;
 }
 
+export function loanMonthlyPayment(balance: number, monthlyRate: number, remainingMonths: number): number {
+  if (remainingMonths <= 0 || balance <= 0) return 0;
+  if (monthlyRate === 0) return balance / remainingMonths;
+  const pow = (1 + monthlyRate) ** remainingMonths;
+  return (balance * monthlyRate * pow) / (pow - 1);
+}
+
+function emitLoanExpense(expense: Expense, planStart: YearMonth, planEnd: YearMonth, out: MonthlyEntry[]): void {
+  const loan = expense.loan;
+  if (!loan || loan.rateSegments.length === 0 || loan.principal <= 0) return;
+  const sorted = [...loan.rateSegments].sort((a, b) => compareYearMonth(a.startMonth, b.startMonth));
+  const firstStart = sorted[0]?.startMonth;
+  const lastSeg = sorted[sorted.length - 1];
+  const lastEnd = lastSeg?.endMonth;
+  if (!firstStart || !lastSeg) return;
+  const loanEnd = lastEnd ?? planEnd;
+  if (compareYearMonth(firstStart, loanEnd) > 0) return;
+
+  let balance = loan.principal;
+  for (let i = 0; i < sorted.length; i++) {
+    const segStart = sorted[i]?.startMonth;
+    if (!segStart) continue;
+    const nextSeg = sorted[i + 1];
+    const annualRate = sorted[i]?.annualRate ?? 0;
+    const segEnd = nextSeg ? addMonths(nextSeg.startMonth, -1) : (sorted[i]?.endMonth ?? loanEnd);
+    if (compareYearMonth(segStart, segEnd) > 0) continue;
+    if (balance <= 0) break;
+    const monthlyRate = annualRate / 12;
+    const remainingToLoanEnd = monthDiff(segStart, loanEnd) + 1;
+    if (remainingToLoanEnd <= 0) break;
+    const payment = loanMonthlyPayment(balance, monthlyRate, remainingToLoanEnd);
+
+    for (const month of iterateMonths(segStart, segEnd)) {
+      if (compareYearMonth(month, planEnd) > 0) return;
+      if (balance <= 0) break;
+      const interest = balance * monthlyRate;
+      const principalAmt = Math.min(balance, payment - interest);
+      const total = interest + principalAmt;
+      balance -= principalAmt;
+      if (compareYearMonth(month, planStart) < 0) continue;
+      const amount = Math.trunc(-total);
+      if (amount === 0) continue;
+      out.push({
+        month,
+        accountId: expense.accountId,
+        sourceId: expense.id,
+        sourceKind: "expense",
+        categoryId: expense.categoryId,
+        amount,
+      });
+    }
+  }
+}
+
+function isLoanExpense(expense: Expense): boolean {
+  return !!expense.loan && expense.loan.rateSegments.length > 0 && expense.loan.principal > 0;
+}
+
+export function loanTotalMonths(loan: LoanSpec): number {
+  if (loan.rateSegments.length === 0) return 0;
+  const sorted = [...loan.rateSegments].sort((a, b) => compareYearMonth(a.startMonth, b.startMonth));
+  const start = sorted[0]?.startMonth;
+  const end = sorted[sorted.length - 1]?.endMonth;
+  if (!start || !end) return 0;
+  return monthDiff(start, end) + 1;
+}
+
 function buildStaticEntriesByMonth(plan: Plan): Map<YearMonth, MonthlyEntry[]> {
   const { planStartMonth: start, planEndMonth: end } = plan.settings;
   const tmp: MonthlyEntry[] = [];
@@ -121,7 +199,7 @@ function buildStaticEntriesByMonth(plan: Plan): Map<YearMonth, MonthlyEntry[]> {
       accountId: snapshot.accountId,
       sourceId: snapshot.id,
       sourceKind: "snapshot",
-      amount: snapshot.balance,
+      amount: Math.trunc(snapshot.balance),
     });
   }
   for (const income of plan.incomes) {
@@ -130,6 +208,10 @@ function buildStaticEntriesByMonth(plan: Plan): Map<YearMonth, MonthlyEntry[]> {
     }
   }
   for (const expense of plan.expenses) {
+    if (isLoanExpense(expense)) {
+      emitLoanExpense(expense, start, end, tmp);
+      continue;
+    }
     for (const segment of expense.segments) {
       emitSegment(expense.accountId, expense.id, "expense", segment, start, end, -1, expense.categoryId, tmp);
     }
@@ -142,11 +224,12 @@ function buildStaticEntriesByMonth(plan: Plan): Map<YearMonth, MonthlyEntry[]> {
       sourceId: event.id,
       sourceKind: "event",
       categoryId: event.categoryId,
-      amount: event.amount,
+      amount: Math.trunc(event.amount),
     });
   }
   for (const transfer of plan.transfers) {
     if (transfer.fromAccountId === transfer.toAccountId) continue;
+    if (transfer.minFromBalance !== undefined) continue;
     for (const segment of transfer.segments) {
       emitTransferSegment(transfer.fromAccountId, transfer.toAccountId, transfer.id, segment, start, end, tmp);
     }
@@ -177,7 +260,7 @@ function computeDynamicEntriesForMonth(
     if (account.kind === "investment" && account.investment && account.investment.annualRate !== 0) {
       const base = balances[account.id] ?? 0;
       const rate = monthlyCompoundRate(account.investment.annualRate);
-      const amount = base * rate;
+      const amount = Math.trunc(base * rate);
       if (Number.isFinite(amount) && amount !== 0) {
         out.push({
           month,
@@ -190,7 +273,7 @@ function computeDynamicEntriesForMonth(
     } else if (account.kind === "property" && account.property && account.property.annualDepreciationRate !== 0) {
       const base = balances[account.id] ?? 0;
       const rate = monthlyCompoundRate(-account.property.annualDepreciationRate);
-      const amount = base * rate;
+      const amount = Math.trunc(base * rate);
       if (Number.isFinite(amount) && amount !== 0) {
         out.push({
           month,
@@ -212,35 +295,83 @@ function computeDynamicEntriesForMonth(
     if (!payment) continue;
     const paymentAccountId = account.liability.paymentAccountId;
     if (paymentAccountId) {
-      if (payment.interest !== 0) {
+      const interest = Math.trunc(payment.interest);
+      const principalTrunc = Math.trunc(payment.principal);
+      if (interest !== 0) {
         out.push({
           month,
           accountId: paymentAccountId,
           sourceId: account.id,
           sourceKind: "loan_interest",
-          amount: -payment.interest,
+          amount: -interest,
         });
       }
-      if (payment.principal !== 0) {
+      if (principalTrunc !== 0) {
         out.push({
           month,
           accountId: paymentAccountId,
           sourceId: account.id,
           sourceKind: "loan_principal",
-          amount: -payment.principal,
+          amount: -principalTrunc,
         });
         out.push({
           month,
           accountId: account.id,
           sourceId: account.id,
           sourceKind: "loan_principal",
-          amount: payment.principal,
+          amount: principalTrunc,
         });
       }
     }
   }
 
+  for (const transfer of plan.transfers) {
+    if (transfer.minFromBalance === undefined) continue;
+    if (transfer.fromAccountId === transfer.toAccountId) continue;
+    for (const segment of transfer.segments) {
+      if (!segmentActiveOnMonth(segment, month, start, end)) continue;
+      const desired = computeSegmentAmount(segment, month);
+      if (desired <= 0) continue;
+      const fromBalance = balances[transfer.fromAccountId] ?? 0;
+      const available = fromBalance - transfer.minFromBalance;
+      const amount = Math.trunc(Math.max(0, Math.min(desired, available)));
+      if (amount <= 0) continue;
+      out.push({
+        month,
+        accountId: transfer.fromAccountId,
+        sourceId: transfer.id,
+        sourceKind: "transfer",
+        amount: -amount,
+      });
+      out.push({
+        month,
+        accountId: transfer.toAccountId,
+        sourceId: transfer.id,
+        sourceKind: "transfer",
+        amount,
+      });
+    }
+  }
+
   return out;
+}
+
+function segmentActiveOnMonth(
+  segment: FlowSegment,
+  month: YearMonth,
+  planStart: YearMonth,
+  planEnd: YearMonth,
+): boolean {
+  const start = maxYearMonth(segment.startMonth, planStart);
+  const end = minYearMonth(segment.endMonth ?? planEnd, planEnd);
+  if (compareYearMonth(start, end) > 0) return false;
+  if (compareYearMonth(month, start) < 0 || compareYearMonth(month, end) > 0) return false;
+  const interval = segment.intervalMonths && segment.intervalMonths > 0 ? segment.intervalMonths : 1;
+  if (interval > 1) {
+    const delta = monthDiff(segment.startMonth, month);
+    if (delta < 0 || delta % interval !== 0) return false;
+  }
+  return true;
 }
 
 function buildLiabilitySchedules(plan: Plan): Map<Ulid, Map<YearMonth, LiabilityPayment>> {

@@ -162,6 +162,12 @@ export function TransfersCard() {
                             <span className="font-mono tabular-nums">{formatYen(head.amount)}</span>
                             {head.raise ? <span className="ml-1">(増減あり)</span> : null}
                             {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
+                            {transfer.minFromBalance !== undefined ? (
+                              <span className="ml-1">
+                                / 最低残高{" "}
+                                <span className="font-mono tabular-nums">{formatYen(transfer.minFromBalance)}</span>
+                              </span>
+                            ) : null}
                           </>
                         ) : (
                           "—"
@@ -208,6 +214,8 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
     dispatch({ type: "transfer/update", id: transfer.id, patch });
   };
 
+  const minEnabled = transfer.minFromBalance !== undefined;
+
   return (
     <div className="grid gap-4 rounded-md border border-dashed bg-muted/10 p-4">
       <div className="grid gap-3 md:grid-cols-3 md:items-end">
@@ -249,6 +257,38 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
             </SelectContent>
           </Select>
         </div>
+      </div>
+      <div className="grid gap-2 rounded-md border border-border/60 bg-muted/5 p-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4"
+            checked={minEnabled}
+            onChange={(e) => update({ minFromBalance: e.target.checked ? 0 : undefined })}
+          />
+          出金元の最低残高を下回らない範囲で移動する
+        </label>
+        {minEnabled ? (
+          <div className="grid gap-3 md:grid-cols-[240px_1fr] md:items-end">
+            <div className="grid gap-1.5">
+              <Label htmlFor={`${transfer.id}-min`}>最低残高 (円)</Label>
+              <Input
+                id={`${transfer.id}-min`}
+                type="number"
+                inputMode="numeric"
+                value={transfer.minFromBalance ?? 0}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return;
+                  update({ minFromBalance: n });
+                }}
+              />
+            </div>
+            <p className="self-center text-xs text-muted-foreground">
+              出金元の月初残高が最低残高を上回っている分だけ移動する。残高が足りなければ部分的に移動、下回っていれば 0。
+            </p>
+          </div>
+        ) : null}
       </div>
       <SegmentList
         idPrefix={`${transfer.id}-seg`}

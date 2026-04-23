@@ -82,12 +82,24 @@ export type Income = {
   segments: FlowSegment[];
 };
 
+export type LoanRateSegment = {
+  startMonth: YearMonth;
+  endMonth?: YearMonth;
+  annualRate: number;
+};
+
+export type LoanSpec = {
+  principal: number;
+  rateSegments: LoanRateSegment[];
+};
+
 export type Expense = {
   id: Ulid;
   label: string;
   accountId: Ulid;
   categoryId?: Ulid;
   segments: FlowSegment[];
+  loan?: LoanSpec;
 };
 
 export type OneShotEvent = {
@@ -122,6 +134,7 @@ export type Transfer = {
   fromAccountId: Ulid;
   toAccountId: Ulid;
   segments: FlowSegment[];
+  minFromBalance?: number;
 };
 
 export type YearStartMonth = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;

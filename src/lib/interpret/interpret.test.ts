@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { Plan } from "@/lib/dsl/types";
-import { computeLiabilitySchedule, computeSegmentAmount, interpret, monthlyCompoundRate } from "./index";
+import {
+  computeLiabilitySchedule,
+  computeSegmentAmount,
+  interpret,
+  loanMonthlyPayment,
+  monthlyCompoundRate,
+} from "./index";
 
 function basePlan(overrides: Partial<Plan> = {}): Plan {
   return {
@@ -383,6 +389,87 @@ describe("interpret", () => {
     expect(months).toEqual(["2026-03", "2027-03"]);
   });
 
+  test("Transfer の minFromBalance は出金元の月初残高が上限を割らないよう部分的に移動する", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a2", label: "invest", kind: "investment" },
+      ],
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-04" },
+      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 1_050_000 }],
+      transfers: [
+        {
+          id: "t1",
+          label: "余剰積立",
+          fromAccountId: "a1",
+          toAccountId: "a2",
+          segments: [{ startMonth: "2026-02", endMonth: "2026-04", amount: 100_000 }],
+          minFromBalance: 1_000_000,
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "transfer");
+    // 2026-02 月初 1,050,000 → 移動可能 50,000 のみ (希望 100,000)
+    // 2026-03 月初 1,000,000 → 移動可能 0
+    // 2026-04 月初 1,000,000 → 移動可能 0
+    const a1Entries = entries.filter((e) => e.accountId === "a1");
+    const a2Entries = entries.filter((e) => e.accountId === "a2");
+    expect(a1Entries).toHaveLength(1);
+    expect(a1Entries[0]?.month).toBe("2026-02");
+    expect(a1Entries[0]?.amount).toBe(-50_000);
+    expect(a2Entries).toHaveLength(1);
+    expect(a2Entries[0]?.amount).toBe(50_000);
+  });
+
+  test("Transfer の minFromBalance=0 は「残高がマイナスになりそうなら止める」動作になる", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a2", label: "invest", kind: "investment" },
+      ],
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
+      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 150 }],
+      transfers: [
+        {
+          id: "t1",
+          label: "積立",
+          fromAccountId: "a1",
+          toAccountId: "a2",
+          segments: [{ startMonth: "2026-01", endMonth: "2026-03", amount: 100 }],
+          minFromBalance: 0,
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "transfer" && e.accountId === "a1");
+    // 移動額の判定は「月初残高」基準 (同月 snapshot は月末に反映) で進む
+    expect(entries.map((e) => [e.month, e.amount])).toEqual([
+      ["2026-02", -100],
+      ["2026-03", -50],
+    ]);
+  });
+
+  test("Transfer の minFromBalance 未指定なら残高に関わらず希望額を移動 (既存挙動)", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a2", label: "invest", kind: "investment" },
+      ],
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
+      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 10 }],
+      transfers: [
+        {
+          id: "t1",
+          label: "積立",
+          fromAccountId: "a1",
+          toAccountId: "a2",
+          segments: [{ startMonth: "2026-01", endMonth: "2026-02", amount: 100 }],
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "transfer" && e.accountId === "a1");
+    expect(entries.every((e) => e.amount === -100)).toBe(true);
+  });
+
   test("Transfer の from===to は無視される", () => {
     const plan = basePlan({
       transfers: [
@@ -466,10 +553,11 @@ describe("investment interest", () => {
     // 2026-02: 月初 10000 → 利息 = 10000 * ((1.12)^(1/12) - 1)
     // 2026-03: 月初 10000 + 先月利息 → 利息
     const r = monthlyCompoundRate(0.12);
+    const febExpected = Math.trunc(10000 * r);
     const feb = entries.find((e) => e.month === "2026-02" && e.sourceKind === "interest");
-    expect(feb?.amount).toBeCloseTo(10000 * r, 6);
+    expect(feb?.amount).toBe(febExpected);
     const mar = entries.find((e) => e.month === "2026-03" && e.sourceKind === "interest");
-    expect(mar?.amount).toBeCloseTo((10000 + 10000 * r) * r, 6);
+    expect(mar?.amount).toBe(Math.trunc((10000 + febExpected) * r));
   });
 
   test("annualRate=0 や params 未設定なら利息は出ない", () => {
@@ -517,8 +605,7 @@ describe("property depreciation", () => {
     const entries = interpret(plan);
     const rate = monthlyCompoundRate(-0.05);
     const feb = entries.find((e) => e.month === "2026-02" && e.sourceKind === "depreciation");
-    // 月初 1000000 → amount = 1000000 * monthlyCompoundRate(-0.05) (負の値)
-    expect(feb?.amount).toBeCloseTo(1000000 * rate, 3);
+    expect(feb?.amount).toBe(Math.trunc(1000000 * rate));
     expect(feb?.amount).toBeLessThan(0);
   });
 });
@@ -569,7 +656,7 @@ describe("liability schedule", () => {
           liability: {
             annualRate: 0.012,
             scheduleKind: "equal-principal",
-            principal: 100,
+            principal: 120_000,
             termMonths: 2,
             startMonth: "2026-01",
             paymentAccountId: "cash",
@@ -587,11 +674,11 @@ describe("liability schedule", () => {
     const jan = entries.filter((e) => e.month === "2026-01");
     const janInterest = jan.find((e) => e.sourceKind === "loan_interest");
     expect(janInterest?.accountId).toBe("cash");
-    expect(janInterest?.amount).toBeLessThan(0);
+    expect(janInterest?.amount).toBe(-120); // 120_000 * 0.001 = 120
     const janPrincipalCash = jan.find((e) => e.sourceKind === "loan_principal" && e.accountId === "cash");
-    expect(janPrincipalCash?.amount).toBeCloseTo(-50, 3);
+    expect(janPrincipalCash?.amount).toBe(-60_000);
     const janPrincipalLoan = jan.find((e) => e.sourceKind === "loan_principal" && e.accountId === "loan");
-    expect(janPrincipalLoan?.amount).toBeCloseTo(50, 3);
+    expect(janPrincipalLoan?.amount).toBe(60_000);
   });
 
   test("paymentAccountId が無い liability は返済エントリを出さない", () => {
@@ -622,5 +709,141 @@ describe("liability schedule", () => {
     expect(interpret(plan).some((e) => e.sourceKind === "loan_interest" || e.sourceKind === "loan_principal")).toBe(
       false,
     );
+  });
+});
+
+describe("loan expense", () => {
+  test("loanMonthlyPayment: 金利 0% は元本を均等に返済する額", () => {
+    expect(loanMonthlyPayment(1200, 0, 12)).toBe(100);
+  });
+
+  test("loanMonthlyPayment: 元利均等の公式どおり", () => {
+    // P=100, r=0.01, n=12
+    const payment = loanMonthlyPayment(100, 0.01, 12);
+    const expected = (100 * 0.01 * 1.01 ** 12) / (1.01 ** 12 - 1);
+    expect(payment).toBeCloseTo(expected, 8);
+  });
+
+  test("loan expense は月ごとに元利均等の返済額を expense として出す", () => {
+    const plan: Plan = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      accounts: [{ id: "cash", label: "現金", kind: "cash" }],
+      snapshots: [],
+      incomes: [],
+      expenses: [
+        {
+          id: "e-loan",
+          label: "住宅ローン",
+          accountId: "cash",
+          segments: [],
+          loan: {
+            principal: 1_200_000,
+            rateSegments: [{ startMonth: "2026-01", endMonth: "2026-12", annualRate: 0 }],
+          },
+        },
+      ],
+      events: [],
+      transfers: [],
+      categories: [],
+    };
+    const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
+    expect(entries).toHaveLength(12);
+    expect(entries.every((e) => e.sourceKind === "expense")).toBe(true);
+    const total = entries.reduce((acc, e) => acc + e.amount, 0);
+    expect(total).toBeCloseTo(-1_200_000, 3);
+  });
+
+  test("loan expense はローン終了月以降は何も出さない", () => {
+    const plan: Plan = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2027-12" },
+      accounts: [{ id: "cash", label: "現金", kind: "cash" }],
+      snapshots: [],
+      incomes: [],
+      expenses: [
+        {
+          id: "e-loan",
+          label: "車ローン",
+          accountId: "cash",
+          segments: [],
+          loan: {
+            principal: 100_000,
+            rateSegments: [{ startMonth: "2026-01", endMonth: "2026-06", annualRate: 0 }],
+          },
+        },
+      ],
+      events: [],
+      transfers: [],
+      categories: [],
+    };
+    const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
+    expect(entries.map((e) => e.month)).toEqual(["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]);
+  });
+
+  test("loan expense は金利変更時に返済額が再計算される", () => {
+    const plan: Plan = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2027-12" },
+      accounts: [{ id: "cash", label: "現金", kind: "cash" }],
+      snapshots: [],
+      incomes: [],
+      expenses: [
+        {
+          id: "e-loan",
+          label: "住宅ローン",
+          accountId: "cash",
+          segments: [],
+          loan: {
+            principal: 2_400_000,
+            rateSegments: [
+              { startMonth: "2026-01", annualRate: 0.012 },
+              { startMonth: "2027-01", endMonth: "2027-12", annualRate: 0.024 },
+            ],
+          },
+        },
+      ],
+      events: [],
+      transfers: [],
+      categories: [],
+    };
+    const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
+    expect(entries).toHaveLength(24);
+    const jan = entries.find((e) => e.month === "2026-01")?.amount ?? 0;
+    const dec = entries.find((e) => e.month === "2026-12")?.amount ?? 0;
+    const jan2027 = entries.find((e) => e.month === "2027-01")?.amount ?? 0;
+    expect(jan).toBeCloseTo(dec, 6);
+    expect(jan2027).not.toBeCloseTo(dec, 2);
+    const total = entries.reduce((acc, e) => acc + e.amount, 0);
+    // 返済総額は元本より大きい (利息分)
+    expect(-total).toBeGreaterThan(2_400_000);
+  });
+
+  test("loan を持つ expense は segments より loan 側が優先される", () => {
+    const plan: Plan = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
+      accounts: [{ id: "cash", label: "現金", kind: "cash" }],
+      snapshots: [],
+      incomes: [],
+      expenses: [
+        {
+          id: "e-loan",
+          label: "ローン",
+          accountId: "cash",
+          segments: [{ startMonth: "2026-01", endMonth: "2026-03", amount: 999 }],
+          loan: {
+            principal: 300,
+            rateSegments: [{ startMonth: "2026-01", endMonth: "2026-03", annualRate: 0 }],
+          },
+        },
+      ],
+      events: [],
+      transfers: [],
+      categories: [],
+    };
+    const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
+    expect(entries).toHaveLength(3);
+    expect(entries.every((e) => e.amount === -100)).toBe(true);
   });
 });

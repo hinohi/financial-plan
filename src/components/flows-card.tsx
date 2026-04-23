@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category-select";
+import { LoanEditor } from "@/components/loan-editor";
 import { SegmentList } from "@/components/segment-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { categoryPath } from "@/lib/categories";
 import { newId } from "@/lib/dsl/id";
 import { isValidYearMonth } from "@/lib/dsl/month";
-import type { Category, Expense, FlowSegment, Income, Ulid, YearMonth } from "@/lib/dsl/types";
+import type { Category, Expense, FlowSegment, Income, LoanSpec, Ulid, YearMonth } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { type PlanAction, usePlan } from "@/state/plan-store";
 
@@ -171,6 +172,9 @@ export function FlowsCard({ kind }: FlowsCardProps) {
               const head = flow.segments[0];
               const extra = flow.segments.length - 1;
               const isExpanded = expandedId === flow.id;
+              const loan = kind === "expense" ? (flow as Expense).loan : undefined;
+              const loanHead = loan?.rateSegments[0];
+              const loanLast = loan?.rateSegments[loan.rateSegments.length - 1];
               return (
                 <li key={flow.id} className="grid gap-3 px-4 py-3">
                   <div className="flex items-center justify-between gap-4">
@@ -190,7 +194,15 @@ export function FlowsCard({ kind }: FlowsCardProps) {
                         </span>
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {head ? (
+                        {loan ? (
+                          <>
+                            ローン / 元本 <span className="font-mono tabular-nums">{formatYen(loan.principal)}</span>
+                            {loanHead ? ` / ${loanHead.startMonth} 〜 ${loanLast?.endMonth ?? "計画終了"}` : null}
+                            {loan.rateSegments.length > 1 ? (
+                              <span className="ml-1">金利 {loan.rateSegments.length} 区間</span>
+                            ) : null}
+                          </>
+                        ) : head ? (
                           <>
                             {head.startMonth} 〜 {head.endMonth ?? "計画終了"} /{" "}
                             {(head.intervalMonths ?? 1) > 1 ? `${head.intervalMonths} ヶ月ごとに ` : "月額 "}
@@ -229,6 +241,9 @@ export function FlowsCard({ kind }: FlowsCardProps) {
                       onSegmentsChange={(next) =>
                         dispatch(config.updateAction(flow.id, { segments: next } as Partial<Omit<Flow, "id">>))
                       }
+                      onLoanChange={(next) =>
+                        dispatch(config.updateAction(flow.id, { loan: next } as Partial<Omit<Flow, "id">>))
+                      }
                     />
                   ) : null}
                 </li>
@@ -249,6 +264,7 @@ type FlowEditorProps = {
   onAccountChange: (value: string) => void;
   onCategoryChange: (value: Ulid | undefined) => void;
   onSegmentsChange: (next: FlowSegment[]) => void;
+  onLoanChange: (next: LoanSpec | undefined) => void;
 };
 
 function FlowEditor({
@@ -259,8 +275,23 @@ function FlowEditor({
   onAccountChange,
   onCategoryChange,
   onSegmentsChange,
+  onLoanChange,
 }: FlowEditorProps) {
   const { plan } = usePlan();
+  const loan = kind === "expense" ? (flow as Expense).loan : undefined;
+  const loanEnabled = !!loan;
+
+  const toggleLoan = (enabled: boolean) => {
+    if (enabled) {
+      onLoanChange({
+        principal: 0,
+        rateSegments: [{ startMonth: planStart, annualRate: 0 }],
+      });
+    } else {
+      onLoanChange(undefined);
+    }
+  };
+
   return (
     <div className="grid gap-4 rounded-md border border-dashed bg-muted/10 p-4">
       <div className="grid gap-3 md:grid-cols-3 md:items-end">
@@ -288,13 +319,28 @@ function FlowEditor({
           <CategorySelect id={`${flow.id}-category`} kind={kind} value={flow.categoryId} onChange={onCategoryChange} />
         </div>
       </div>
-      <SegmentList
-        idPrefix={`${flow.id}-seg`}
-        segments={flow.segments}
-        planStart={planStart}
-        showInterval
-        onChange={onSegmentsChange}
-      />
+      {kind === "expense" ? (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4"
+            checked={loanEnabled}
+            onChange={(e) => toggleLoan(e.target.checked)}
+          />
+          ローン返済モード (元利均等で月次返済額を自動計算)
+        </label>
+      ) : null}
+      {loanEnabled && loan ? (
+        <LoanEditor idPrefix={`${flow.id}-loan`} loan={loan} planStart={planStart} onChange={onLoanChange} />
+      ) : (
+        <SegmentList
+          idPrefix={`${flow.id}-seg`}
+          segments={flow.segments}
+          planStart={planStart}
+          showInterval
+          onChange={onSegmentsChange}
+        />
+      )}
     </div>
   );
 }
