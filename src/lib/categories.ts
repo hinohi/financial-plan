@@ -23,11 +23,12 @@ export function isDescendantOf(candidate: Ulid, ancestor: Ulid, byId: Map<Ulid, 
   return false;
 }
 
-export function sortedCategoriesByPath(categories: Category[], kind: CategoryKind): Category[] {
+export function sortedCategoriesByPath(categories: Category[], kinds: CategoryKind | CategoryKind[]): Category[] {
+  const allowed = new Set<CategoryKind>(Array.isArray(kinds) ? kinds : [kinds]);
   const byId = new Map<Ulid, Category>();
   for (const c of categories) byId.set(c.id, c);
   return categories
-    .filter((c) => c.kind === kind)
+    .filter((c) => allowed.has(c.kind))
     .map((c) => ({ c, path: categoryPath(c, byId) }))
     .sort((a, b) => a.path.localeCompare(b.path, "ja"))
     .map((x) => x.c);

@@ -5,6 +5,7 @@ import { MonthExprInput } from "@/components/month-expr-input";
 import { SegmentList } from "@/components/segment-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -133,7 +134,7 @@ export function FlowsCard({ kind }: FlowsCardProps) {
             </div>
             <div className="grid gap-2">
               <Label htmlFor={`${kind}-category`}>カテゴリ</Label>
-              <CategorySelect id={`${kind}-category`} kind={kind} value={categoryId} onChange={setCategoryId} />
+              <CategorySelect id={`${kind}-category`} kinds={kind} value={categoryId} onChange={setCategoryId} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor={`${kind}-amount`}>月額 (円)</Label>
@@ -299,7 +300,7 @@ function FlowEditor({
       <div className="grid gap-3 md:grid-cols-3 md:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${flow.id}-label`}>ラベル</Label>
-          <Input id={`${flow.id}-label`} value={flow.label} onChange={(e) => onLabelChange(e.target.value)} />
+          <CommittedInput id={`${flow.id}-label`} value={flow.label} onCommit={(v) => onLabelChange(v)} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${flow.id}-account`}>口座</Label>
@@ -318,7 +319,7 @@ function FlowEditor({
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${flow.id}-category`}>カテゴリ</Label>
-          <CategorySelect id={`${flow.id}-category`} kind={kind} value={flow.categoryId} onChange={onCategoryChange} />
+          <CategorySelect id={`${flow.id}-category`} kinds={kind} value={flow.categoryId} onChange={onCategoryChange} />
         </div>
       </div>
       {kind === "expense" ? (

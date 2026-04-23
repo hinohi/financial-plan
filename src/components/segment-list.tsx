@@ -1,5 +1,6 @@
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -71,7 +72,7 @@ type SegmentRowProps = {
 function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: SegmentRowProps) {
   const raise = segment.raise;
 
-  const setAmount = (value: string) => {
+  const commitAmount = (value: string) => {
     if (value === "" || Number.isNaN(Number(value))) return;
     onChange({ amount: Number(value) });
   };
@@ -113,12 +114,12 @@ function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: Seg
           <Label htmlFor={`${idPrefix}-amount`}>
             {(segment.intervalMonths ?? 1) > 1 ? "1 回あたりの額 (円)" : "月額 (円)"}
           </Label>
-          <Input
+          <CommittedInput
             id={`${idPrefix}-amount`}
             type="number"
             inputMode="numeric"
             value={segment.amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onCommit={commitAmount}
           />
         </div>
         {onRemove ? (
@@ -133,14 +134,14 @@ function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: Seg
         <div className="grid gap-3 md:grid-cols-[160px_1fr] md:items-end">
           <div className="grid gap-1.5">
             <Label htmlFor={`${idPrefix}-interval`}>N ヶ月ごと</Label>
-            <Input
+            <CommittedInput
               id={`${idPrefix}-interval`}
               type="number"
               inputMode="numeric"
               min={1}
               value={segment.intervalMonths ?? 1}
-              onChange={(e) => {
-                const n = Number(e.target.value);
+              onCommit={(v) => {
+                const n = Number(v);
                 if (!Number.isInteger(n) || n < 1) return;
                 onChange({ intervalMonths: n === 1 ? undefined : n });
               }}
@@ -178,28 +179,28 @@ function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: Seg
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor={`${idPrefix}-raise-value`}>値 {raise.kind === "rate" ? "(例: 0.03 → 3%)" : "(円)"}</Label>
-            <Input
+            <CommittedInput
               id={`${idPrefix}-raise-value`}
               type="number"
               inputMode="decimal"
               step={raise.kind === "rate" ? 0.01 : 1}
               value={raise.value}
-              onChange={(e) => {
-                const n = Number(e.target.value);
+              onCommit={(v) => {
+                const n = Number(v);
                 if (!Number.isNaN(n)) updateRaise({ value: n });
               }}
             />
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor={`${idPrefix}-raise-every`}>間隔 (月)</Label>
-            <Input
+            <CommittedInput
               id={`${idPrefix}-raise-every`}
               type="number"
               inputMode="numeric"
               min={1}
               value={raise.everyMonths}
-              onChange={(e) => {
-                const n = Number(e.target.value);
+              onCommit={(v) => {
+                const n = Number(v);
                 if (Number.isInteger(n) && n >= 1) updateRaise({ everyMonths: n });
               }}
             />

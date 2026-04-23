@@ -1,8 +1,14 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { isPersonAgeRef, isValidYearMonth, personAgeMonthFromNumber, resolveMonthExpr } from "@/lib/dsl/month";
-import type { MonthExpr, PersonAgeMonth, Ulid, YearStartMonth } from "@/lib/dsl/types";
+import {
+  currentYearMonth,
+  isPersonAgeRef,
+  isValidYearMonth,
+  personAgeMonthFromNumber,
+  resolveMonthExpr,
+} from "@/lib/dsl/month";
+import type { MonthExpr, PersonAgeMonth, Ulid, YearMonth, YearStartMonth } from "@/lib/dsl/types";
 import { usePlan } from "@/state/plan-store";
 
 const MODE_LITERAL = "literal";
@@ -16,14 +22,12 @@ type Props = {
   onChange: (next: MonthExpr | undefined) => void;
   /** true の場合は未指定 (undefined) を許容する (既存の endMonth 等の用途) */
   allowEmpty?: boolean;
-  /** 未指定時に mode=literal で表示するデフォルト YearMonth 文字列 */
-  defaultLiteral?: string;
   className?: string;
 };
 
 const MONTHS: PersonAgeMonth[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-export function MonthExprInput({ id, value, onChange, allowEmpty, defaultLiteral = "", className }: Props) {
+export function MonthExprInput({ id, value, onChange, allowEmpty, className }: Props) {
   const { plan } = usePlan();
   const persons = plan.persons;
   const yearStart = plan.settings.yearStartMonth;
@@ -34,6 +38,16 @@ export function MonthExprInput({ id, value, onChange, allowEmpty, defaultLiteral
   const literal = typeof value === "string" ? value : "";
   const ref = value && isPersonAgeRef(value) ? value : null;
 
+  // 最後に保持していた有効な literal。mode 切替で戻した際にここから復元する。
+  const lastLiteralRef = useRef<YearMonth | null>(
+    typeof value === "string" && isValidYearMonth(value) ? value : null,
+  );
+  useEffect(() => {
+    if (typeof value === "string" && isValidYearMonth(value)) {
+      lastLiteralRef.current = value;
+    }
+  }, [value]);
+
   const resolvedPreview = useMemo(() => {
     if (!ref) return null;
     return resolveMonthExpr(ref, persons, yearStart);
@@ -41,9 +55,20 @@ export function MonthExprInput({ id, value, onChange, allowEmpty, defaultLiteral
 
   const handleModeChange = (next: Mode) => {
     if (next === MODE_LITERAL) {
-      onChange(literal && isValidYearMonth(literal) ? literal : allowEmpty ? undefined : (defaultLiteral as MonthExpr));
+      // 既に literal なら何もしない
+      if (typeof value === "string") return;
+      const last = lastLiteralRef.current;
+      if (last && isValidYearMonth(last)) {
+        onChange(last);
+      } else if (allowEmpty) {
+        onChange(undefined);
+      } else {
+        onChange(currentYearMonth());
+      }
       return;
     }
+    // MODE_PERSON
+    if (isPersonAgeRef(value)) return;
     const firstPerson = persons[0];
     if (!firstPerson) return;
     onChange({ kind: "person-age", personId: firstPerson.id, age: 0, month: 1 });

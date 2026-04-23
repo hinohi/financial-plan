@@ -1,5 +1,6 @@
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addMonths } from "@/lib/dsl/month";
@@ -43,13 +44,13 @@ export function LoanEditor({ idPrefix, loan, planStart, onChange }: LoanEditorPr
       <div className="grid gap-3 md:grid-cols-[260px_1fr] md:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${idPrefix}-principal`}>借入元本 (円)</Label>
-          <Input
+          <CommittedInput
             id={`${idPrefix}-principal`}
             type="number"
             inputMode="numeric"
             value={loan.principal}
-            onChange={(e) => {
-              const n = Number(e.target.value);
+            onCommit={(v) => {
+              const n = Number(v);
               if (!Number.isFinite(n) || n < 0) return;
               update({ principal: n });
             }}
@@ -92,14 +93,14 @@ export function LoanEditor({ idPrefix, loan, planStart, onChange }: LoanEditorPr
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor={`${idPrefix}-rate-${index}-rate`}>年利 (小数: 0.01 = 1%)</Label>
-                <Input
+                <CommittedInput
                   id={`${idPrefix}-rate-${index}-rate`}
                   type="number"
                   inputMode="decimal"
                   step={0.001}
                   value={seg.annualRate}
-                  onChange={(e) => {
-                    const n = Number(e.target.value);
+                  onCommit={(v) => {
+                    const n = Number(v);
                     if (!Number.isFinite(n)) return;
                     updateRateSegment(index, { annualRate: n });
                   }}

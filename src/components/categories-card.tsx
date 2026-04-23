@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -123,25 +124,24 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
       {sorted.length === 0 ? (
         <p className="text-sm text-muted-foreground">まだありません。</p>
       ) : (
-        <ul className="divide-y rounded-md border">
-          {sorted.map((category) => {
-            const validParents = plan.categories.filter(
-              (c) => c.kind === kind && c.id !== category.id && !isDescendantOf(c.id, category.id, byId),
-            );
-            return (
-              <li key={category.id} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`cat-${category.id}-label`}>ラベル</Label>
-                  <Input
-                    id={`cat-${category.id}-label`}
+        <div className="rounded-md border">
+          <div className="grid grid-cols-[1fr_1fr_72px] gap-3 border-b bg-muted/30 px-4 py-2 text-xs font-medium text-muted-foreground">
+            <span>ラベル</span>
+            <span>親カテゴリ</span>
+            <span />
+          </div>
+          <ul className="divide-y">
+            {sorted.map((category) => {
+              const validParents = plan.categories.filter(
+                (c) => c.kind === kind && c.id !== category.id && !isDescendantOf(c.id, category.id, byId),
+              );
+              return (
+                <li key={category.id} className="grid grid-cols-[1fr_1fr_72px] items-center gap-3 px-4 py-2">
+                  <CommittedInput
+                    aria-label="ラベル"
                     value={category.label}
-                    onChange={(e) =>
-                      dispatch({ type: "category/update", id: category.id, patch: { label: e.target.value } })
-                    }
+                    onCommit={(v) => dispatch({ type: "category/update", id: category.id, patch: { label: v } })}
                   />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor={`cat-${category.id}-parent`}>親カテゴリ</Label>
                   <Select
                     value={category.parentId ?? NONE_VALUE}
                     onValueChange={(v) =>
@@ -152,7 +152,7 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
                       })
                     }
                   >
-                    <SelectTrigger id={`cat-${category.id}-parent`} className="w-full">
+                    <SelectTrigger aria-label="親カテゴリ" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -164,18 +164,18 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => dispatch({ type: "category/remove", id: category.id })}
-                >
-                  削除
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => dispatch({ type: "category/remove", id: category.id })}
+                  >
+                    削除
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );

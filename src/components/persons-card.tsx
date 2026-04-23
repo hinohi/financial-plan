@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { newId } from "@/lib/dsl/id";
@@ -56,10 +57,10 @@ export function PersonsCard() {
           <ul className="divide-y rounded-md border">
             {plan.persons.map((person) => (
               <li key={person.id} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_160px_auto] md:items-center">
-                <Input
+                <CommittedInput
                   aria-label="ラベル"
                   value={person.label}
-                  onChange={(e) => dispatch({ type: "person/update", id: person.id, patch: { label: e.target.value } })}
+                  onCommit={(v) => dispatch({ type: "person/update", id: person.id, patch: { label: v } })}
                 />
                 <Input
                   aria-label="生年月"

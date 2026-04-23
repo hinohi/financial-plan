@@ -128,14 +128,13 @@ export type OneShotEvent = {
   amount: number;
 };
 
-export type CategoryKind = "income" | "expense" | "event";
+export type CategoryKind = "income" | "expense";
 
-export const CATEGORY_KINDS: CategoryKind[] = ["income", "expense", "event"];
+export const CATEGORY_KINDS: CategoryKind[] = ["income", "expense"];
 
 export const CATEGORY_KIND_LABEL: Record<CategoryKind, string> = {
   income: "収入",
   expense: "支出",
-  event: "イベント",
 };
 
 export type Category = {

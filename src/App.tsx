@@ -15,7 +15,7 @@ import "./index.css";
 export function App() {
   return (
     <PlanProvider>
-      <div className="container mx-auto flex max-w-5xl flex-col gap-6 p-6 md:p-8">
+      <div className="container mx-auto flex max-w-7xl flex-col gap-6 p-6 md:p-8">
         <header className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold tracking-tight">FP</h1>
           <p className="text-muted-foreground">ファイナンシャルプランを作成し管理するツール</p>

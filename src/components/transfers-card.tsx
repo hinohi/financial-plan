@@ -3,6 +3,7 @@ import { MonthExprInput } from "@/components/month-expr-input";
 import { SegmentList } from "@/components/segment-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -221,10 +222,10 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
       <div className="grid gap-3 md:grid-cols-3 md:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${transfer.id}-label`}>ラベル</Label>
-          <Input
+          <CommittedInput
             id={`${transfer.id}-label`}
             value={transfer.label}
-            onChange={(e) => update({ label: e.target.value })}
+            onCommit={(v) => update({ label: v })}
           />
         </div>
         <div className="grid gap-1.5">
@@ -272,13 +273,13 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
           <div className="grid gap-3 md:grid-cols-[240px_1fr] md:items-end">
             <div className="grid gap-1.5">
               <Label htmlFor={`${transfer.id}-min`}>最低残高 (円)</Label>
-              <Input
+              <CommittedInput
                 id={`${transfer.id}-min`}
                 type="number"
                 inputMode="numeric"
                 value={transfer.minFromBalance ?? 0}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
+                onCommit={(v) => {
+                  const n = Number(v);
                   if (!Number.isFinite(n)) return;
                   update({ minFromBalance: n });
                 }}

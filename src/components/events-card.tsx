@@ -3,6 +3,7 @@ import { CategorySelect } from "@/components/category-select";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,7 +11,7 @@ import { categoryPath } from "@/lib/categories";
 import { newId } from "@/lib/dsl/id";
 import { compareYearMonth, isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
 import { resolvePlan } from "@/lib/dsl/resolve";
-import type { Category, MonthExpr, Ulid, YearMonth } from "@/lib/dsl/types";
+import type { Category, MonthExpr, OneShotEvent, Ulid, YearMonth } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { usePlan } from "@/state/plan-store";
 
@@ -21,6 +22,7 @@ export function EventsCard() {
   const [categoryId, setCategoryId] = useState<Ulid | undefined>(undefined);
   const [month, setMonth] = useState<MonthExpr | undefined>(undefined);
   const [amount, setAmount] = useState<string>("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const accountLabel = useMemo(() => {
     const map = new Map<string, string>();
@@ -121,7 +123,12 @@ export function EventsCard() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="event-category">カテゴリ</Label>
-              <CategorySelect id="event-category" kind="event" value={categoryId} onChange={setCategoryId} />
+              <CategorySelect
+                id="event-category"
+                kinds={["income", "expense"]}
+                value={categoryId}
+                onChange={setCategoryId}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="event-month">年月</Label>
@@ -153,25 +160,38 @@ export function EventsCard() {
                     return c ? categoryPath(c, categoryById) : "未分類";
                   })()
                 : "未分類";
+              const isExpanded = expandedId === event.id;
               return (
-                <li key={event.id} className="flex items-center justify-between gap-4 px-4 py-2">
-                  <div className="grid text-sm">
-                    <span className="font-medium">
-                      {event.label}
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {describeMonth(event.month)} / {accountLabel.get(event.accountId) ?? "不明"} / {categoryLabel}
-                      </span>
-                      {isPersonAgeRef(event.month) ? (
-                        <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
-                          人物参照
+                <li key={event.id} className="grid gap-3 px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="grid text-sm">
+                      <span className="font-medium">
+                        {event.label}
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {describeMonth(event.month)} / {accountLabel.get(event.accountId) ?? "不明"} / {categoryLabel}
                         </span>
-                      ) : null}
-                    </span>
-                    <span className="font-mono tabular-nums">{formatYen(event.amount)}</span>
+                        {isPersonAgeRef(event.month) ? (
+                          <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
+                            人物参照
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="font-mono tabular-nums">{formatYen(event.amount)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : event.id)}>
+                        {isExpanded ? "閉じる" : "編集"}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => dispatch({ type: "event/remove", id: event.id })}
+                      >
+                        削除
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => dispatch({ type: "event/remove", id: event.id })}>
-                    削除
-                  </Button>
+                  {isExpanded ? <EventEditor event={event} /> : null}
                 </li>
               );
             })}
@@ -179,5 +199,71 @@ export function EventsCard() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function EventEditor({ event }: { event: OneShotEvent }) {
+  const { plan, dispatch } = usePlan();
+
+  const update = (patch: Partial<Omit<OneShotEvent, "id">>) => {
+    dispatch({ type: "event/update", id: event.id, patch });
+  };
+
+  return (
+    <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[1fr_1fr_1fr_200px_1fr] md:items-end">
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${event.id}-label`}>ラベル</Label>
+        <CommittedInput id={`${event.id}-label`} value={event.label} onCommit={(v) => update({ label: v })} />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${event.id}-account`}>口座</Label>
+        <Select value={event.accountId} onValueChange={(v) => update({ accountId: v })}>
+          <SelectTrigger id={`${event.id}-account`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {plan.accounts.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${event.id}-category`}>カテゴリ</Label>
+        <CategorySelect
+          id={`${event.id}-category`}
+          kinds={["income", "expense"]}
+          value={event.categoryId}
+          onChange={(v) => update({ categoryId: v })}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${event.id}-month`}>年月</Label>
+        <MonthExprInput
+          id={`${event.id}-month`}
+          value={event.month}
+          onChange={(v) => {
+            if (!v) return;
+            update({ month: v });
+          }}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${event.id}-amount`}>金額 (円、負で支出)</Label>
+        <CommittedInput
+          id={`${event.id}-amount`}
+          type="number"
+          inputMode="numeric"
+          value={event.amount}
+          onCommit={(v) => {
+            const n = Number(v);
+            if (!Number.isFinite(n)) return;
+            update({ amount: n });
+          }}
+        />
+      </div>
+    </div>
   );
 }

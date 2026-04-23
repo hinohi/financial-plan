@@ -1,6 +1,6 @@
 import { newId } from "@/lib/dsl/id";
 import { emptyPlan } from "@/lib/dsl/plan";
-import type { Person, Plan, Ulid } from "@/lib/dsl/types";
+import type { Category, Person, Plan, Ulid } from "@/lib/dsl/types";
 
 const REGISTRY_KEY = "fp.registry.v1";
 const PLAN_KEY_PREFIX = "fp.plans.";
@@ -32,6 +32,21 @@ function nowIso(now: Date = new Date()): string {
   return now.toISOString();
 }
 
+function hydrateCategories(raw: unknown): Category[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Category[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const c = v as Partial<Category> & { kind?: unknown };
+    if (typeof c.id !== "string" || typeof c.label !== "string") continue;
+    // 旧 "event" kind は expense に移行する (イベントは収入/支出カテゴリを共用する仕様に変わった)
+    const kind: Category["kind"] = c.kind === "income" ? "income" : "expense";
+    const parentId = typeof c.parentId === "string" ? c.parentId : undefined;
+    out.push({ id: c.id, label: c.label, kind, parentId });
+  }
+  return out;
+}
+
 function hydratePersons(raw: unknown): Person[] {
   if (!Array.isArray(raw)) return [];
   const out: Person[] = [];
@@ -59,7 +74,7 @@ export function hydratePlan(raw: unknown): Plan | null {
     expenses: p.expenses ?? [],
     events: p.events ?? [],
     transfers: p.transfers ?? [],
-    categories: p.categories ?? [],
+    categories: hydrateCategories(p.categories),
   };
 }
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -147,14 +148,14 @@ function InvestmentEditor({ account }: { account: Account }) {
     <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[260px_1fr]">
       <div className="grid gap-1.5">
         <Label htmlFor={`inv-${account.id}-rate`}>年利 (小数: 0.05 = 5%)</Label>
-        <Input
+        <CommittedInput
           id={`inv-${account.id}-rate`}
           type="number"
           inputMode="decimal"
           step={0.001}
           value={value}
-          onChange={(e) => {
-            const n = Number(e.target.value);
+          onCommit={(v) => {
+            const n = Number(v);
             if (!Number.isFinite(n)) return;
             dispatch({ type: "account/update", id: account.id, patch: { investment: { annualRate: n } } });
           }}
@@ -172,14 +173,14 @@ function PropertyEditor({ account }: { account: Account }) {
     <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[260px_1fr]">
       <div className="grid gap-1.5">
         <Label htmlFor={`prop-${account.id}-rate`}>減価率 年率 (小数)</Label>
-        <Input
+        <CommittedInput
           id={`prop-${account.id}-rate`}
           type="number"
           inputMode="decimal"
           step={0.001}
           value={value}
-          onChange={(e) => {
-            const n = Number(e.target.value);
+          onCommit={(v) => {
+            const n = Number(v);
             if (!Number.isFinite(n)) return;
             dispatch({
               type: "account/update",
@@ -231,14 +232,14 @@ function LiabilityEditor({ account }: { account: Account }) {
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor={`li-${account.id}-rate`}>年利 (小数)</Label>
-        <Input
+        <CommittedInput
           id={`li-${account.id}-rate`}
           type="number"
           inputMode="decimal"
           step={0.001}
           value={params.annualRate}
-          onChange={(e) => {
-            const n = Number(e.target.value);
+          onCommit={(v) => {
+            const n = Number(v);
             if (!Number.isFinite(n)) return;
             update({ annualRate: n });
           }}
@@ -246,13 +247,13 @@ function LiabilityEditor({ account }: { account: Account }) {
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor={`li-${account.id}-principal`}>借入元本 (円)</Label>
-        <Input
+        <CommittedInput
           id={`li-${account.id}-principal`}
           type="number"
           inputMode="numeric"
           value={params.principal}
-          onChange={(e) => {
-            const n = Number(e.target.value);
+          onCommit={(v) => {
+            const n = Number(v);
             if (!Number.isFinite(n)) return;
             update({ principal: n });
           }}
@@ -260,14 +261,14 @@ function LiabilityEditor({ account }: { account: Account }) {
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor={`li-${account.id}-term`}>返済期間 (月)</Label>
-        <Input
+        <CommittedInput
           id={`li-${account.id}-term`}
           type="number"
           inputMode="numeric"
           min={1}
           value={params.termMonths}
-          onChange={(e) => {
-            const n = Number(e.target.value);
+          onCommit={(v) => {
+            const n = Number(v);
             if (!Number.isInteger(n) || n < 0) return;
             update({ termMonths: n });
           }}

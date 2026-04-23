@@ -44,7 +44,6 @@ const UNCATEGORIZED_COLOR = "oklch(0.70 0.02 260)";
 const TITLES: Record<CategoryKind, { title: string; description: string }> = {
   income: { title: "収入の内訳", description: "カテゴリ別の積み上げ" },
   expense: { title: "支出の内訳", description: "カテゴリ別の積み上げ" },
-  event: { title: "イベントの内訳", description: "カテゴリ別の積み上げ（正: 収入、負: 支出）" },
 };
 
 export function FlowChart({ kind }: FlowChartProps) {
