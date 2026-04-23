@@ -1,4 +1,14 @@
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
 import { emptyPlan } from "@/lib/dsl/plan";
 import type {
@@ -31,6 +41,7 @@ import {
   savePlanById,
   saveRegistry,
 } from "@/lib/storage";
+import { decodeSharedPlan, encodePlanForShare, isShareCode } from "@/lib/storage/share";
 
 export type PlanAction =
   | { type: "plan/replace"; plan: Plan }
@@ -328,7 +339,12 @@ type RegistryContextValue = {
   exportCurrentPlan: () => string;
   importPlanAsNew: (json: string, name?: string) => { ok: true } | { ok: false; error: string };
   replaceCurrentPlan: (json: string) => { ok: true } | { ok: false; error: string };
+  buildShareUrl: () => Promise<{ ok: true; url: string } | { ok: false; error: string }>;
+  shareImportNotice: ShareImportNotice | null;
+  dismissShareImportNotice: () => void;
 };
+
+export type ShareImportNotice = { kind: "success"; planName: string } | { kind: "error"; error: string };
 
 const PlanContext = createContext<PlanContextValue | null>(null);
 const RegistryContext = createContext<RegistryContextValue | null>(null);
@@ -339,8 +355,11 @@ function initialState(): AppState {
   return { registry: boot.registry, plan };
 }
 
+const SHARE_IMPORT_PLAN_NAME = "共有から取り込んだプラン";
+
 export function PlanProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, undefined, initialState);
+  const [shareImportNotice, setShareImportNotice] = useState<ShareImportNotice | null>(null);
   const isFirstRender = useRef(true);
 
   useEffect(() => {
@@ -415,6 +434,53 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     return { ok: true as const };
   }, []);
 
+  const buildShareUrl = useCallback(async () => {
+    try {
+      const code = await encodePlanForShare(planRef.current);
+      if (typeof window === "undefined") return { ok: false as const, error: "window が利用できません" };
+      const { origin, pathname, search } = window.location;
+      const url = `${origin}${pathname}${search}#${code}`;
+      return { ok: true as const, url };
+    } catch (e) {
+      return { ok: false as const, error: e instanceof Error ? e.message : "共有URLの生成に失敗しました" };
+    }
+  }, []);
+
+  const dismissShareImportNotice = useCallback(() => setShareImportNotice(null), []);
+
+  // hash fragment に共有コードが載っていれば初回マウント時に新規プランとして取り込む。
+  // 取り込み可否に関わらず hash は消して、リロードで重複追加されないようにする。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
+    if (!raw || !isShareCode(raw)) return;
+    const clearHash = () => {
+      try {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      } catch {
+        // history API が使えない環境 (古いブラウザ等) は諦める。
+      }
+    };
+    let cancelled = false;
+    (async () => {
+      const result = await decodeSharedPlan(raw);
+      clearHash();
+      if (cancelled) return;
+      if (!result.ok) {
+        setShareImportNotice({ kind: "error", error: result.error });
+        return;
+      }
+      savePlanById(registryRef.current.currentPlanId, planRef.current);
+      const meta = createPlanMeta(SHARE_IMPORT_PLAN_NAME);
+      savePlanById(meta.id, result.plan);
+      dispatch({ type: "registry/create", meta, plan: result.plan });
+      setShareImportNotice({ kind: "success", planName: meta.name });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const planValue = useMemo<PlanContextValue>(
     () => ({ plan: state.plan, dispatch: planDispatch }),
     [state.plan, planDispatch],
@@ -429,6 +495,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       exportCurrentPlan,
       importPlanAsNew,
       replaceCurrentPlan,
+      buildShareUrl,
+      shareImportNotice,
+      dismissShareImportNotice,
     }),
     [
       state.registry,
@@ -439,6 +508,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       exportCurrentPlan,
       importPlanAsNew,
       replaceCurrentPlan,
+      buildShareUrl,
+      shareImportNotice,
+      dismissShareImportNotice,
     ],
   );
 

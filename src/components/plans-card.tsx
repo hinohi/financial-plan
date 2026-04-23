@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CollapseToggle } from "@/components/collapse-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,12 @@ import { usePlanRegistry } from "@/state/plan-store";
 
 type ImportMode = "new" | "overwrite";
 
+type ShareStatus =
+  | { kind: "idle" }
+  | { kind: "copied"; url: string }
+  | { kind: "ready"; url: string }
+  | { kind: "error"; error: string };
+
 export function PlansCard() {
   const {
     registry,
@@ -20,6 +26,9 @@ export function PlansCard() {
     exportCurrentPlan,
     importPlanAsNew,
     replaceCurrentPlan,
+    buildShareUrl,
+    shareImportNotice,
+    dismissShareImportNotice,
   } = usePlanRegistry();
 
   const [newName, setNewName] = useState("");
@@ -28,6 +37,8 @@ export function PlansCard() {
   const [importMode, setImportMode] = useState<ImportMode>("new");
   const [importName, setImportName] = useState<string>("");
   const [importError, setImportError] = useState<string | null>(null);
+  const [shareStatus, setShareStatus] = useState<ShareStatus>({ kind: "idle" });
+  const [sharing, setSharing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentMeta = registry.plans.find((p) => p.id === registry.currentPlanId);
@@ -73,6 +84,33 @@ export function PlansCard() {
     deletePlan(currentMeta.id);
   };
 
+  const handleShare = async () => {
+    setSharing(true);
+    setShareStatus({ kind: "idle" });
+    try {
+      const result = await buildShareUrl();
+      if (!result.ok) {
+        setShareStatus({ kind: "error", error: result.error });
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(result.url);
+        setShareStatus({ kind: "copied", url: result.url });
+      } catch {
+        // clipboard 権限が無い / iframe 等でコピーできない場合は URL を表示してユーザーに委ねる。
+        setShareStatus({ kind: "ready", url: result.url });
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (shareStatus.kind !== "copied") return;
+    const timer = setTimeout(() => setShareStatus({ kind: "idle" }), 3000);
+    return () => clearTimeout(timer);
+  }, [shareStatus]);
+
   const canDelete = registry.plans.length > 1;
   const [collapsed, toggleCollapsed] = useCollapse("plans");
 
@@ -89,6 +127,24 @@ export function PlansCard() {
       </CardHeader>
       {collapsed ? null : (
         <CardContent className="grid gap-4">
+          {shareImportNotice ? (
+            <div
+              className={`flex items-start justify-between gap-3 rounded-md border p-3 text-sm ${
+                shareImportNotice.kind === "success"
+                  ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
+                  : "border-destructive/40 bg-destructive/5 text-destructive"
+              }`}
+            >
+              <span>
+                {shareImportNotice.kind === "success"
+                  ? `共有URLから「${shareImportNotice.planName}」を取り込みました`
+                  : `共有URLの読み込みに失敗しました: ${shareImportNotice.error}`}
+              </span>
+              <Button variant="ghost" size="sm" onClick={dismissShareImportNotice}>
+                閉じる
+              </Button>
+            </div>
+          ) : null}
           <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
             <div className="grid gap-2">
               <Label htmlFor="plan-select">現在のプラン</Label>
@@ -152,6 +208,36 @@ export function PlansCard() {
                 作成
               </Button>
             </div>
+          </div>
+
+          <div className="grid gap-3 rounded-md border bg-muted/10 p-4">
+            <div className="text-sm font-semibold">共有URL</div>
+            <p className="text-xs text-muted-foreground">
+              現在のプランを符号化した URL を生成します。URL を知っている相手は全データを閲覧できます。共有先
+              (メール、チャット、ブラウザ履歴など) にデータが残る点に注意してください。
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="outline" onClick={handleShare} disabled={sharing}>
+                {sharing ? "生成中…" : "共有URLをコピー"}
+              </Button>
+              {shareStatus.kind === "copied" ? (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                  コピーしました ({shareStatus.url.length.toLocaleString()} 文字)
+                </span>
+              ) : null}
+              {shareStatus.kind === "error" ? (
+                <span className="text-xs text-destructive">{shareStatus.error}</span>
+              ) : null}
+            </div>
+            {shareStatus.kind === "ready" ? (
+              <div className="grid gap-1">
+                <Label htmlFor="share-url">共有URL ({shareStatus.url.length.toLocaleString()} 文字)</Label>
+                <Input id="share-url" readOnly value={shareStatus.url} onFocus={(e) => e.currentTarget.select()} />
+                <p className="text-xs text-muted-foreground">
+                  クリップボード API が使えなかったため、手動でコピーしてください。
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-3 rounded-md border bg-muted/10 p-4">
