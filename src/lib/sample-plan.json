@@ -1,0 +1,546 @@
+{
+  "schemaVersion": 1,
+  "settings": {
+    "yearStartMonth": 4,
+    "planStartMonth": "2026-04",
+    "planEndMonth": {
+      "kind": "person-age",
+      "personId": "0fcc49a1-4173-4fb4-91dd-a022894d04fa",
+      "age": 90,
+      "month": 3
+    }
+  },
+  "persons": [
+    {
+      "id": "0fcc49a1-4173-4fb4-91dd-a022894d04fa",
+      "label": "世帯主",
+      "birthMonth": "1998-07",
+      "previousYearIncome": 7000000
+    },
+    {
+      "id": "2197f11c-ee2d-4228-8b12-dd47ad018aa3",
+      "label": "配偶者",
+      "birthMonth": "1999-01"
+    },
+    {
+      "id": "be685093-aedf-4630-afb7-636f3f5bb5da",
+      "label": "第一子",
+      "birthMonth": "2025-10"
+    }
+  ],
+  "accounts": [
+    {
+      "id": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "label": "現金",
+      "kind": "cash"
+    },
+    {
+      "id": "d05ccafe-84fd-4a1f-a486-f5120aa477c8",
+      "label": "投資",
+      "kind": "investment",
+      "investment": {
+        "annualRate": 0.03
+      }
+    }
+  ],
+  "snapshots": [
+    {
+      "id": "a8b25e51-a310-41a0-a0b8-25b7cc6d3ddd",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "month": "2026-03",
+      "balance": 2000000
+    },
+    {
+      "id": "e7322262-6b67-4812-a8a8-d9c7b4dff653",
+      "accountId": "d05ccafe-84fd-4a1f-a486-f5120aa477c8",
+      "month": "2026-03",
+      "balance": 300000
+    }
+  ],
+  "incomes": [
+    {
+      "id": "884994db-ee28-4066-9a98-e4b683f6f30b",
+      "label": "配偶者・本業",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "4d05ccac-6875-496a-bdbf-27a7719ad9a7",
+      "segments": [
+        {
+          "startMonth": "2026-04",
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "2197f11c-ee2d-4228-8b12-dd47ad018aa3",
+            "age": 60,
+            "month": 3
+          },
+          "amount": 220000,
+          "raise": {
+            "kind": "fixed",
+            "value": 3000,
+            "everyMonths": 12
+          },
+          "note": "給与"
+        },
+        {
+          "startMonth": "2026-06",
+          "amount": 200000,
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "2197f11c-ee2d-4228-8b12-dd47ad018aa3",
+            "age": 60,
+            "month": 3
+          },
+          "intervalMonths": 6,
+          "note": "賞与"
+        }
+      ]
+    },
+    {
+      "id": "7074804d-7227-4557-ad77-ad54de38b45c",
+      "label": "年金",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "ad6fc463-a37c-4f4d-8f90-a6dbc436a324",
+      "segments": [
+        {
+          "startMonth": {
+            "kind": "person-age",
+            "personId": "0fcc49a1-4173-4fb4-91dd-a022894d04fa",
+            "age": 65,
+            "month": 4
+          },
+          "amount": 100000
+        },
+        {
+          "startMonth": {
+            "kind": "person-age",
+            "personId": "2197f11c-ee2d-4228-8b12-dd47ad018aa3",
+            "age": 65,
+            "month": 4
+          },
+          "amount": 80000,
+          "raise": {
+            "kind": "rate",
+            "value": 0.03,
+            "everyMonths": 12
+          }
+        }
+      ]
+    },
+    {
+      "id": "43ec06f3-9b57-447d-8b6e-99a6fe9ce731",
+      "label": "子ども手当",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "ad6fc463-a37c-4f4d-8f90-a6dbc436a324",
+      "segments": [
+        {
+          "startMonth": "2026-04",
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 18,
+            "month": 3
+          },
+          "amount": 30000,
+          "intervalMonths": 2
+        }
+      ]
+    }
+  ],
+  "expenses": [
+    {
+      "id": "2d44e0f4-7dc4-4692-a093-29bf15542c30",
+      "label": "食費",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "7a2f38cb-af32-48a8-967d-4cd210c5b1d9",
+      "segments": [
+        {
+          "startMonth": "2026-04",
+          "amount": 60000,
+          "raise": {
+            "kind": "rate",
+            "value": 0.01,
+            "everyMonths": 12
+          }
+        },
+        {
+          "startMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 8,
+            "month": 4
+          },
+          "amount": 30000,
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 22,
+            "month": 3
+          },
+          "raise": {
+            "kind": "rate",
+            "value": 0.01,
+            "everyMonths": 12
+          }
+        }
+      ]
+    },
+    {
+      "id": "1d86edd8-b2b7-411b-8935-147a2d7ea8f7",
+      "label": "雑費",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "b744d150-eddd-4d28-801e-d6be521a7ff8",
+      "segments": [
+        {
+          "startMonth": "2026-04",
+          "amount": 200000,
+          "raise": {
+            "kind": "rate",
+            "value": 0.01,
+            "everyMonths": 12
+          }
+        },
+        {
+          "startMonth": "2026-04",
+          "amount": 50000,
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 22,
+            "month": 3
+          },
+          "raise": {
+            "kind": "rate",
+            "value": 0.03,
+            "everyMonths": 12
+          }
+        }
+      ]
+    },
+    {
+      "id": "d5597cfe-2c48-4bb7-a5e4-338b3fd5e843",
+      "label": "家賃",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "7bdeb654-9807-46d0-9bbe-8ae210479adb",
+      "segments": [
+        {
+          "startMonth": "2026-04",
+          "endMonth": "2030-09",
+          "amount": 220000
+        }
+      ]
+    },
+    {
+      "id": "6f10b79a-a2ce-48b2-b006-6205c5e3758d",
+      "label": "家",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "0dc7446e-b80b-44a8-8851-88760c49debc",
+      "segments": [
+        {
+          "startMonth": "2030-10",
+          "endMonth": "2065-09",
+          "amount": 160000
+        }
+      ],
+      "loan": {
+        "principal": 60000000,
+        "rateSegments": [
+          {
+            "startMonth": "2030-10",
+            "annualRate": 0.02,
+            "endMonth": "2035-06"
+          },
+          {
+            "startMonth": "2035-07",
+            "annualRate": 0.015,
+            "endMonth": "2065-09"
+          }
+        ]
+      }
+    },
+    {
+      "id": "8a665054-9709-4025-8e52-ca97c9c69021",
+      "label": "家・修繕費",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "88275596-9e71-44d5-8ce0-321e10396a75",
+      "segments": [
+        {
+          "startMonth": "2045-04",
+          "amount": 2000000,
+          "raise": {
+            "kind": "rate",
+            "value": 0.01,
+            "everyMonths": 12
+          },
+          "intervalMonths": 120,
+          "note": "10年おきに200万円"
+        }
+      ]
+    },
+    {
+      "id": "a7e679b1-ca6b-4487-8f3c-8cc72e93945d",
+      "label": "携帯代",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "531bfcef-8c34-4db0-96e8-022e5795807d",
+      "segments": [
+        {
+          "startMonth": "2026-04",
+          "amount": 4000,
+          "note": "世帯主"
+        },
+        {
+          "startMonth": "2026-04",
+          "amount": 4000,
+          "note": "配偶者"
+        },
+        {
+          "startMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 12,
+            "month": 4
+          },
+          "amount": 4000,
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 22,
+            "month": 3
+          },
+          "note": "小学6年からもたせる。大学卒業したら自分で負担させる"
+        }
+      ]
+    },
+    {
+      "id": "b12250e9-e452-47ba-99f4-44b69fa6a428",
+      "label": "学費",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "45535f9a-832a-485a-8ea5-1655a1161bb4",
+      "segments": [
+        {
+          "startMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 13,
+            "month": 4
+          },
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 15,
+            "month": 3
+          },
+          "amount": 150000,
+          "intervalMonths": 6,
+          "note": "中学校（私学）"
+        },
+        {
+          "startMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 16,
+            "month": 4
+          },
+          "amount": 250000,
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 18,
+            "month": 3
+          },
+          "intervalMonths": 6,
+          "note": "高校（私学）"
+        },
+        {
+          "startMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 19,
+            "month": 4
+          },
+          "amount": 700000,
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 22,
+            "month": 3
+          },
+          "intervalMonths": 6
+        }
+      ]
+    },
+    {
+      "id": "3cb6b609-6792-4940-af9f-ac9dafd9bcea",
+      "label": "塾",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "21625466-5c32-40f1-9022-63f76bbce46c",
+      "segments": [
+        {
+          "startMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 10,
+            "month": 4
+          },
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "be685093-aedf-4630-afb7-636f3f5bb5da",
+            "age": 18,
+            "month": 2
+          },
+          "amount": 50000
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "176301b3-82c0-48ac-9e8b-1ee8d237f2ed",
+      "label": "家・頭金",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "88275596-9e71-44d5-8ce0-321e10396a75",
+      "month": "2030-07",
+      "amount": -5000000
+    },
+    {
+      "id": "f87041ae-278e-4666-acf6-48a100b74d84",
+      "label": "退職金",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "categoryId": "4d05ccac-6875-496a-bdbf-27a7719ad9a7",
+      "month": {
+        "kind": "person-age",
+        "personId": "0fcc49a1-4173-4fb4-91dd-a022894d04fa",
+        "age": 65,
+        "month": 3
+      },
+      "amount": 3000000
+    }
+  ],
+  "transfers": [
+    {
+      "id": "f9627cea-ad6c-43ab-90ad-197e76d23ab5",
+      "label": "積立投資",
+      "fromAccountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "toAccountId": "d05ccafe-84fd-4a1f-a486-f5120aa477c8",
+      "segments": [
+        {
+          "startMonth": "2026-04",
+          "endMonth": {
+            "kind": "person-age",
+            "personId": "0fcc49a1-4173-4fb4-91dd-a022894d04fa",
+            "age": 60,
+            "month": 3
+          },
+          "amount": 30000
+        }
+      ],
+      "minFromBalance": 1000000
+    },
+    {
+      "id": "f19f8751-0a16-4dd5-824d-a45d111bdd26",
+      "label": "投資取り崩し",
+      "fromAccountId": "d05ccafe-84fd-4a1f-a486-f5120aa477c8",
+      "toAccountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "segments": [
+        {
+          "startMonth": {
+            "kind": "person-age",
+            "personId": "0fcc49a1-4173-4fb4-91dd-a022894d04fa",
+            "age": 65,
+            "month": 4
+          },
+          "amount": 120000
+        }
+      ],
+      "minFromBalance": 0
+    }
+  ],
+  "categories": [
+    {
+      "id": "11de04d4-9994-47d6-af38-1b404ea52f05",
+      "label": "生活費",
+      "kind": "expense"
+    },
+    {
+      "id": "7a2f38cb-af32-48a8-967d-4cd210c5b1d9",
+      "label": "食費",
+      "kind": "expense",
+      "parentId": "11de04d4-9994-47d6-af38-1b404ea52f05"
+    },
+    {
+      "id": "531bfcef-8c34-4db0-96e8-022e5795807d",
+      "label": "通信費",
+      "kind": "expense",
+      "parentId": "11de04d4-9994-47d6-af38-1b404ea52f05"
+    },
+    {
+      "id": "b744d150-eddd-4d28-801e-d6be521a7ff8",
+      "label": "消耗品・その他",
+      "kind": "expense",
+      "parentId": "11de04d4-9994-47d6-af38-1b404ea52f05"
+    },
+    {
+      "id": "88275596-9e71-44d5-8ce0-321e10396a75",
+      "label": "住宅費",
+      "kind": "expense"
+    },
+    {
+      "id": "7bdeb654-9807-46d0-9bbe-8ae210479adb",
+      "label": "家賃",
+      "kind": "expense",
+      "parentId": "88275596-9e71-44d5-8ce0-321e10396a75"
+    },
+    {
+      "id": "0dc7446e-b80b-44a8-8851-88760c49debc",
+      "label": "住宅ローン",
+      "kind": "expense",
+      "parentId": "88275596-9e71-44d5-8ce0-321e10396a75"
+    },
+    {
+      "id": "4d05ccac-6875-496a-bdbf-27a7719ad9a7",
+      "label": "給与",
+      "kind": "income"
+    },
+    {
+      "id": "6fde6b52-f350-4b4d-9895-7a53d62fae3e",
+      "label": "教育費",
+      "kind": "expense"
+    },
+    {
+      "id": "45535f9a-832a-485a-8ea5-1655a1161bb4",
+      "label": "学費",
+      "kind": "expense",
+      "parentId": "6fde6b52-f350-4b4d-9895-7a53d62fae3e"
+    },
+    {
+      "id": "21625466-5c32-40f1-9022-63f76bbce46c",
+      "label": "塾",
+      "kind": "expense",
+      "parentId": "6fde6b52-f350-4b4d-9895-7a53d62fae3e"
+    },
+    {
+      "id": "ad6fc463-a37c-4f4d-8f90-a6dbc436a324",
+      "label": "支給",
+      "kind": "income"
+    }
+  ],
+  "grossSalaries": [
+    {
+      "id": "004c2940-b408-4dd0-afc9-7041bfc66843",
+      "label": "世帯主・本業",
+      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
+      "personId": "0fcc49a1-4173-4fb4-91dd-a022894d04fa",
+      "annualAmount": 6000000,
+      "startMonth": "2026-04",
+      "raise": {
+        "kind": "rate",
+        "value": 0.01,
+        "everyMonths": 12
+      },
+      "endMonth": {
+        "kind": "person-age",
+        "personId": "0fcc49a1-4173-4fb4-91dd-a022894d04fa",
+        "age": 65,
+        "month": 3
+      }
+    }
+  ]
+}

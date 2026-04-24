@@ -1,6 +1,7 @@
 import { newId } from "@/lib/dsl/id";
 import { emptyPlan } from "@/lib/dsl/plan";
 import type { Category, Person, Plan, Ulid } from "@/lib/dsl/types";
+import samplePlanData from "@/lib/sample-plan.json";
 
 const REGISTRY_KEY = "fp.registry.v1";
 const PLAN_KEY_PREFIX = "fp.plans.";
@@ -202,8 +203,8 @@ export function bootstrap(now: Date = new Date()): Bootstrap {
     return { registry, plans: { [meta.id]: legacy } };
   }
 
-  const plan = emptyPlan(now);
-  const meta = createPlanMeta("新しいプラン", now);
+  const plan = hydratePlan(samplePlanData) ?? emptyPlan(now);
+  const meta = createPlanMeta("サンプル", now);
   const registry: Registry = { plans: [meta], currentPlanId: meta.id };
   savePlanById(meta.id, plan);
   saveRegistry(registry);
