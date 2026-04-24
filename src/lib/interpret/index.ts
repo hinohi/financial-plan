@@ -16,23 +16,30 @@ import {
   type ResolvedSnapshot,
   resolvePlan,
 } from "@/lib/dsl/resolve";
-import type { Account, MonthlyEntry, Person, Plan, Ulid, YearMonth } from "@/lib/dsl/types";
+import type { Account, FlowRaise, MonthlyEntry, Person, Plan, Ulid, YearMonth } from "@/lib/dsl/types";
 import { computeAnnualIncomeTax, computeAnnualResidentTax, computeAnnualSocialInsurance } from "@/lib/tax";
 
 function withinPlan(month: YearMonth, start: YearMonth, end: YearMonth): boolean {
   return compareYearMonth(month, start) >= 0 && compareYearMonth(month, end) <= 0;
 }
 
-export function computeSegmentAmount(segment: ResolvedFlowSegment, month: YearMonth): number {
-  const base = segment.amount;
-  const raise = segment.raise;
+/**
+ * base に対して raise を適用した値を返す。
+ * raise が無い、everyMonths<=0、startMonth より前の月、まだ 1 step も経過していない
+ * のいずれかの場合は base をそのまま返す。
+ */
+function applyRaise(base: number, raise: FlowRaise | undefined, startMonth: YearMonth, month: YearMonth): number {
   if (!raise || raise.everyMonths <= 0) return base;
-  const delta = monthDiff(segment.startMonth, month);
+  const delta = monthDiff(startMonth, month);
   if (delta <= 0) return base;
   const steps = Math.floor(delta / raise.everyMonths);
   if (steps <= 0) return base;
   if (raise.kind === "fixed") return base + steps * raise.value;
   return base * (1 + raise.value) ** steps;
+}
+
+export function computeSegmentAmount(segment: ResolvedFlowSegment, month: YearMonth): number {
+  return applyRaise(segment.amount, segment.raise, segment.startMonth, month);
 }
 
 function emitSegment(
@@ -169,15 +176,7 @@ export function loanTotalMonths(loan: ResolvedLoanSpec): number {
 }
 
 export function computeSalaryAnnualAmount(salary: ResolvedGrossSalary, month: YearMonth): number {
-  const base = salary.annualAmount;
-  const raise = salary.raise;
-  if (!raise || raise.everyMonths <= 0) return base;
-  const delta = monthDiff(salary.startMonth, month);
-  if (delta <= 0) return base;
-  const steps = Math.floor(delta / raise.everyMonths);
-  if (steps <= 0) return base;
-  if (raise.kind === "fixed") return base + steps * raise.value;
-  return base * (1 + raise.value) ** steps;
+  return applyRaise(salary.annualAmount, salary.raise, salary.startMonth, month);
 }
 
 /** その月の額面支給 (月割り)。年額を 12 等分する簡易モデル */
