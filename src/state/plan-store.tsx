@@ -9,17 +9,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
+import { resolveMonthExpr } from "@/lib/dsl/month";
+import { exprRefsPerson, grossSalaryRefsPerson, loanRefsPerson, segmentRefsPerson } from "@/lib/dsl/person-refs";
 import { emptyPlan } from "@/lib/dsl/plan";
 import type {
   Account,
   Category,
   Expense,
-  FlowSegment,
   GrossSalary,
   Income,
-  LoanRateSegment,
-  LoanSpec,
   MonthExpr,
   OneShotEvent,
   Person,
@@ -103,28 +101,6 @@ function reorderItems<T extends { id: Ulid }>(list: T[], order: Ulid[]): T[] {
   // order に現れなかった要素は末尾に元の順で付ける
   for (const item of list) if (byId.has(item.id)) out.push(item);
   return out;
-}
-
-function exprRefsPerson(expr: MonthExpr | undefined, personId: Ulid): boolean {
-  return !!expr && isPersonAgeRef(expr) && expr.personId === personId;
-}
-
-function segmentRefsPerson(segment: FlowSegment, personId: Ulid): boolean {
-  return exprRefsPerson(segment.startMonth, personId) || exprRefsPerson(segment.endMonth, personId);
-}
-
-function grossSalaryRefsPerson(salary: GrossSalary, personId: Ulid): boolean {
-  if (salary.personId === personId) return true;
-  return exprRefsPerson(salary.startMonth, personId) || exprRefsPerson(salary.endMonth, personId);
-}
-
-function loanRateSegmentRefsPerson(rs: LoanRateSegment, personId: Ulid): boolean {
-  return exprRefsPerson(rs.startMonth, personId) || exprRefsPerson(rs.endMonth, personId);
-}
-
-function loanRefsPerson(loan: LoanSpec | undefined, personId: Ulid): boolean {
-  if (!loan) return false;
-  return loan.rateSegments.some((rs) => loanRateSegmentRefsPerson(rs, personId));
 }
 
 function resolveSettingsMonth(
