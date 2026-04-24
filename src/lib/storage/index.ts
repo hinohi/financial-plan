@@ -266,7 +266,7 @@ function hydrateTransfers(raw: unknown): Transfer[] {
   const out: Transfer[] = [];
   for (const v of raw) {
     if (!v || typeof v !== "object") continue;
-    const t = v as Partial<Transfer> & { minFromBalance?: unknown };
+    const t = v as Partial<Transfer> & { minFromBalance?: unknown; minToBalance?: unknown };
     if (
       typeof t.id !== "string" ||
       typeof t.label !== "string" ||
@@ -283,6 +283,7 @@ function hydrateTransfers(raw: unknown): Transfer[] {
       segments: hydrateFlowSegments(t.segments),
     };
     if (isFiniteNumber(t.minFromBalance)) transfer.minFromBalance = t.minFromBalance;
+    if (isFiniteNumber(t.minToBalance)) transfer.minToBalance = t.minToBalance;
     out.push(transfer);
   }
   return out;

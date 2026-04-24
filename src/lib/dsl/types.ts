@@ -149,7 +149,10 @@ export type Transfer = {
   fromAccountId: Ulid;
   toAccountId: Ulid;
   segments: FlowSegment[];
+  /** 指定時、出金元の月初残高がこの額を下回らない範囲で部分的に振替する */
   minFromBalance?: number;
+  /** 指定時、入金先の月初残高がこの額を下回っていれば、差分を上限として補充する */
+  minToBalance?: number;
 };
 
 export type YearStartMonth = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;

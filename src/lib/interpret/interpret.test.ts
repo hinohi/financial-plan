@@ -520,6 +520,127 @@ describe("interpret", () => {
     expect(entries.every((e) => e.amount === -100)).toBe(true);
   });
 
+  test("Transfer の minToBalance は入金先の月初残高が下限を下回る分だけ補充する", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "from", label: "invest", kind: "cash" },
+        { id: "to", label: "cash", kind: "cash" },
+      ],
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-04" },
+      snapshots: [
+        { id: "sf", accountId: "from", month: "2026-01", balance: 10_000_000 },
+        { id: "st", accountId: "to", month: "2026-01", balance: 50_000 },
+      ],
+      transfers: [
+        {
+          id: "t1",
+          label: "補充",
+          fromAccountId: "from",
+          toAccountId: "to",
+          segments: [{ startMonth: "2026-02", endMonth: "2026-04", amount: 1_000_000 }],
+          minToBalance: 100_000,
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "transfer");
+    // 2026-02 月初 to=50,000 → 50,000 補充 → 月末 to=100,000
+    // 2026-03 月初 to=100,000 → shortage=0 → スキップ
+    // 2026-04 月初 to=100,000 → shortage=0 → スキップ
+    const toEntries = entries.filter((e) => e.accountId === "to");
+    const fromEntries = entries.filter((e) => e.accountId === "from");
+    expect(toEntries).toHaveLength(1);
+    expect(toEntries[0]?.month).toBe("2026-02");
+    expect(toEntries[0]?.amount).toBe(50_000);
+    expect(fromEntries).toHaveLength(1);
+    expect(fromEntries[0]?.amount).toBe(-50_000);
+  });
+
+  test("Transfer の minToBalance 指定時、segment.amount は 1 回あたりの補充上限として機能する", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "from", label: "invest", kind: "cash" },
+        { id: "to", label: "cash", kind: "cash" },
+      ],
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
+      snapshots: [
+        { id: "sf", accountId: "from", month: "2026-01", balance: 10_000_000 },
+        { id: "st", accountId: "to", month: "2026-01", balance: 50_000 },
+      ],
+      transfers: [
+        {
+          id: "t1",
+          label: "補充 (上限付き)",
+          fromAccountId: "from",
+          toAccountId: "to",
+          segments: [{ startMonth: "2026-02", endMonth: "2026-03", amount: 20_000 }],
+          minToBalance: 100_000,
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "transfer" && e.accountId === "to");
+    // 2026-02 月初 to=50,000, shortage=50,000, 上限=20,000 → 20,000 補充、月末 to=70,000
+    // 2026-03 月初 to=70,000, shortage=30,000, 上限=20,000 → 20,000 補充、月末 to=90,000
+    expect(entries.map((e) => [e.month, e.amount])).toEqual([
+      ["2026-02", 20_000],
+      ["2026-03", 20_000],
+    ]);
+  });
+
+  test("Transfer の minToBalance 指定時、入金先が下限以上の月は振替しない", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "from", label: "invest", kind: "cash" },
+        { id: "to", label: "cash", kind: "cash" },
+      ],
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
+      snapshots: [
+        { id: "sf", accountId: "from", month: "2026-01", balance: 10_000_000 },
+        { id: "st", accountId: "to", month: "2026-01", balance: 200_000 },
+      ],
+      transfers: [
+        {
+          id: "t1",
+          label: "補充",
+          fromAccountId: "from",
+          toAccountId: "to",
+          segments: [{ startMonth: "2026-02", endMonth: "2026-02", amount: 1_000_000 }],
+          minToBalance: 100_000,
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "transfer");
+    expect(entries).toEqual([]);
+  });
+
+  test("Transfer の minFromBalance と minToBalance を併用すると両方の制約を満たす分だけ移動する", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "from", label: "invest", kind: "cash" },
+        { id: "to", label: "cash", kind: "cash" },
+      ],
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
+      snapshots: [{ id: "sf", accountId: "from", month: "2026-01", balance: 1_030_000 }],
+      transfers: [
+        {
+          id: "t1",
+          label: "補充 (出金制約あり)",
+          fromAccountId: "from",
+          toAccountId: "to",
+          segments: [{ startMonth: "2026-02", endMonth: "2026-02", amount: 1_000_000 }],
+          minFromBalance: 1_000_000,
+          minToBalance: 100_000,
+        },
+      ],
+    });
+    // 2026-02 月初: from=1,030,000, to=0
+    // shortage (to)     = 100,000 - 0 = 100,000
+    // available (from)  = 1,030,000 - 1,000,000 = 30,000
+    // cap = min(desired=1,000,000, shortage=100,000, available=30,000) = 30,000
+    const entries = interpret(plan).filter((e) => e.sourceKind === "transfer" && e.accountId === "to");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.amount).toBe(30_000);
+  });
+
   test("Transfer の from===to は無視される", () => {
     const plan = basePlan({
       transfers: [

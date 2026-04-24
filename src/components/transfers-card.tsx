@@ -170,8 +170,14 @@ export function TransfersCard() {
                                 {extra > 0 ? <span className="ml-1">+{extra} セグメント</span> : null}
                                 {transfer.minFromBalance !== undefined ? (
                                   <span className="ml-1">
-                                    / 最低残高{" "}
+                                    / 出金元下限{" "}
                                     <span className="font-mono tabular-nums">{formatYen(transfer.minFromBalance)}</span>
+                                  </span>
+                                ) : null}
+                                {transfer.minToBalance !== undefined ? (
+                                  <span className="ml-1">
+                                    / 入金先下限{" "}
+                                    <span className="font-mono tabular-nums">{formatYen(transfer.minToBalance)}</span>
                                   </span>
                                 ) : null}
                               </>
@@ -237,7 +243,8 @@ const TransferEditor = memo(function TransferEditor({ transfer, planStart, accou
     [dispatch, transfer.id],
   );
 
-  const minEnabled = transfer.minFromBalance !== undefined;
+  const minFromEnabled = transfer.minFromBalance !== undefined;
+  const minToEnabled = transfer.minToBalance !== undefined;
 
   return (
     <div className="grid gap-4 rounded-md border border-dashed bg-muted/10 p-4">
@@ -282,17 +289,17 @@ const TransferEditor = memo(function TransferEditor({ transfer, planStart, accou
           <input
             type="checkbox"
             className="size-4"
-            checked={minEnabled}
+            checked={minFromEnabled}
             onChange={(e) => update({ minFromBalance: e.target.checked ? 0 : undefined })}
           />
           出金元の最低残高を下回らない範囲で移動する
         </label>
-        {minEnabled ? (
+        {minFromEnabled ? (
           <div className="grid gap-3 md:grid-cols-[240px_1fr] md:items-end">
             <div className="grid gap-1.5">
-              <Label htmlFor={`${transfer.id}-min`}>最低残高 (円)</Label>
+              <Label htmlFor={`${transfer.id}-min-from`}>出金元の最低残高 (円)</Label>
               <NumericCommittedInput
-                id={`${transfer.id}-min`}
+                id={`${transfer.id}-min-from`}
                 value={transfer.minFromBalance ?? 0}
                 onCommit={(v) => {
                   const n = Number(v);
@@ -303,6 +310,37 @@ const TransferEditor = memo(function TransferEditor({ transfer, planStart, accou
             </div>
             <p className="self-center text-xs text-muted-foreground">
               出金元の月初残高が最低残高を上回っている分だけ移動する。残高が足りなければ部分的に移動、下回っていれば 0。
+            </p>
+          </div>
+        ) : null}
+      </div>
+      <div className="grid gap-2 rounded-md border border-border/60 bg-muted/5 p-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4"
+            checked={minToEnabled}
+            onChange={(e) => update({ minToBalance: e.target.checked ? 0 : undefined })}
+          />
+          入金先の残高が最低額を下回ったら補充する
+        </label>
+        {minToEnabled ? (
+          <div className="grid gap-3 md:grid-cols-[240px_1fr] md:items-end">
+            <div className="grid gap-1.5">
+              <Label htmlFor={`${transfer.id}-min-to`}>入金先の最低残高 (円)</Label>
+              <NumericCommittedInput
+                id={`${transfer.id}-min-to`}
+                value={transfer.minToBalance ?? 0}
+                onCommit={(v) => {
+                  const n = Number(v);
+                  if (!Number.isFinite(n)) return;
+                  update({ minToBalance: n });
+                }}
+              />
+            </div>
+            <p className="self-center text-xs text-muted-foreground">
+              入金先の月初残高が最低残高を下回っていれば、その差分だけ振替する。セグメントの月額は 1
+              回あたりの補充上限として機能する。
             </p>
           </div>
         ) : null}

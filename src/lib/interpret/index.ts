@@ -406,7 +406,7 @@ function buildStaticEntriesByMonth(plan: ResolvedPlan): Map<YearMonth, MonthlyEn
   }
   for (const transfer of plan.transfers) {
     if (transfer.fromAccountId === transfer.toAccountId) continue;
-    if (transfer.minFromBalance !== undefined) continue;
+    if (transfer.minFromBalance !== undefined || transfer.minToBalance !== undefined) continue;
     for (const segment of transfer.segments) {
       emitTransferSegment(transfer.fromAccountId, transfer.toAccountId, transfer.id, segment, start, end, tmp);
     }
@@ -451,15 +451,27 @@ function computeDynamicEntriesForMonth(
   }
 
   for (const transfer of plan.transfers) {
-    if (transfer.minFromBalance === undefined) continue;
+    const hasFromLimit = transfer.minFromBalance !== undefined;
+    const hasToLimit = transfer.minToBalance !== undefined;
+    if (!hasFromLimit && !hasToLimit) continue;
     if (transfer.fromAccountId === transfer.toAccountId) continue;
     for (const segment of transfer.segments) {
       if (!segmentActiveOnMonth(segment, month, start, end)) continue;
       const desired = computeSegmentAmount(segment, month);
       if (desired <= 0) continue;
-      const fromBalance = balances[transfer.fromAccountId] ?? 0;
-      const available = fromBalance - transfer.minFromBalance;
-      const amount = Math.trunc(Math.max(0, Math.min(desired, available)));
+      let cap = desired;
+      if (hasToLimit) {
+        const toBalance = balances[transfer.toAccountId] ?? 0;
+        const shortage = (transfer.minToBalance as number) - toBalance;
+        if (shortage <= 0) continue;
+        cap = Math.min(cap, shortage);
+      }
+      if (hasFromLimit) {
+        const fromBalance = balances[transfer.fromAccountId] ?? 0;
+        const available = fromBalance - (transfer.minFromBalance as number);
+        cap = Math.min(cap, available);
+      }
+      const amount = Math.trunc(Math.max(0, cap));
       if (amount <= 0) continue;
       out.push({
         month,
