@@ -932,4 +932,115 @@ describe("loan expense", () => {
     expect(entries).toHaveLength(3);
     expect(entries.every((e) => e.amount === -100)).toBe(true);
   });
+
+  test("loan 期間全体が plan 開始より前なら返済は何も出ない", () => {
+    const plan: Plan = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2030-01", planEndMonth: "2030-12" },
+      accounts: [{ id: "cash", label: "現金", kind: "cash" }],
+      snapshots: [],
+      incomes: [],
+      expenses: [
+        {
+          id: "e-loan",
+          label: "完済済みローン",
+          accountId: "cash",
+          segments: [],
+          loan: {
+            principal: 120_000,
+            rateSegments: [{ startMonth: "2020-01", endMonth: "2021-12", annualRate: 0 }],
+          },
+        },
+      ],
+      events: [],
+      transfers: [],
+      categories: [],
+      persons: [],
+      grossSalaries: [],
+    };
+    const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
+    expect(entries).toHaveLength(0);
+  });
+
+  test("loan 開始が plan 開始より前でも balance が引き継がれ、plan 範囲のみ出力される", () => {
+    // 2025-01 から 2026-12 までの 2年ローン (金利 0%, 月額 100)
+    // plan は 2026-01 開始なので、2025 年分の 12 ヶ月は balance だけ減らして表に出ず、
+    // 2026-01..2026-12 の 12 ヶ月分のみ -100 として出力される。
+    const plan: Plan = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      accounts: [{ id: "cash", label: "現金", kind: "cash" }],
+      snapshots: [],
+      incomes: [],
+      expenses: [
+        {
+          id: "e-loan",
+          label: "住宅",
+          accountId: "cash",
+          segments: [],
+          loan: {
+            principal: 2_400,
+            rateSegments: [{ startMonth: "2025-01", endMonth: "2026-12", annualRate: 0 }],
+          },
+        },
+      ],
+      events: [],
+      transfers: [],
+      categories: [],
+      persons: [],
+      grossSalaries: [],
+    };
+    const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
+    expect(entries).toHaveLength(12);
+    expect(entries.map((e) => e.month)).toEqual([
+      "2026-01",
+      "2026-02",
+      "2026-03",
+      "2026-04",
+      "2026-05",
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10",
+      "2026-11",
+      "2026-12",
+    ]);
+    expect(entries.every((e) => e.amount === -100)).toBe(true);
+  });
+
+  test("投資口座の annualRate が負でも interest が NaN を出さない", () => {
+    const plan: Plan = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
+      accounts: [{ id: "inv", label: "投資", kind: "investment", investment: { annualRate: -0.1 } }],
+      snapshots: [{ id: "s1", accountId: "inv", month: "2026-01", balance: 10_000 }],
+      incomes: [],
+      expenses: [],
+      events: [],
+      transfers: [],
+      categories: [],
+      persons: [],
+      grossSalaries: [],
+    };
+    const interests = interpret(plan).filter((e) => e.sourceKind === "interest");
+    expect(interests.every((e) => Number.isFinite(e.amount))).toBe(true);
+    // -10% 年利の 1 ヶ月分は負の amount
+    expect(interests[0]?.amount).toBeLessThan(0);
+  });
+});
+
+describe("raise 昇給・複利", () => {
+  test("computeSegmentAmount: everyMonths=0 は base を返す (防御)", () => {
+    const amount = computeSegmentAmount(
+      { startMonth: "2026-01", amount: 100, raise: { kind: "fixed", value: 10, everyMonths: 0 } },
+      "2026-12",
+    );
+    expect(amount).toBe(100);
+  });
+
+  test("monthlyCompoundRate: 非有限値は 0 に丸められる", () => {
+    expect(monthlyCompoundRate(Number.POSITIVE_INFINITY)).toBe(0);
+    expect(monthlyCompoundRate(Number.NaN)).toBe(0);
+  });
 });
