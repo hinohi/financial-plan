@@ -10,17 +10,32 @@ const MAX_ENCODED_CHARS = 500_000;
 // 展開後 JSON の上限 (decompression bomb 対策)。
 const MAX_DECODED_BYTES = 2_000_000;
 
-async function streamToBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
+class OutputTooLargeError extends Error {
+  constructor() {
+    super("output exceeds limit");
+  }
+}
+
+async function streamToBytes(stream: ReadableStream<Uint8Array>, maxBytes: number): Promise<Uint8Array> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    if (value && value.length > 0) {
-      chunks.push(value);
-      total += value.length;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value && value.length > 0) {
+        total += value.length;
+        if (total > maxBytes) {
+          // 以降のチャンクを受け取らないように stream を中断する
+          await reader.cancel();
+          throw new OutputTooLargeError();
+        }
+        chunks.push(value);
+      }
     }
+  } finally {
+    reader.releaseLock();
   }
   const out = new Uint8Array(total);
   let pos = 0;
@@ -35,22 +50,28 @@ async function runTransform(
   input: Uint8Array,
   writable: WritableStream<BufferSource>,
   readable: ReadableStream<Uint8Array>,
+  maxBytes: number,
 ): Promise<Uint8Array> {
   const writer = writable.getWriter();
   // DOM の BufferSource 型は ArrayBufferLike 系の Uint8Array を直接受け取れないため明示キャスト。
-  const writePromise = writer.write(input as unknown as BufferSource).then(() => writer.close());
-  const [, bytes] = await Promise.all([writePromise, streamToBytes(readable)]);
+  // 書き込みが reject されても読み出し側の失敗と二重で throw しないように握り潰す。
+  const writePromise = writer
+    .write(input as unknown as BufferSource)
+    .then(() => writer.close())
+    .catch(() => {});
+  const [, bytes] = await Promise.all([writePromise, streamToBytes(readable, maxBytes)]);
   return bytes;
 }
 
 async function compress(bytes: Uint8Array): Promise<Uint8Array> {
   const cs = new CompressionStream("deflate-raw");
-  return runTransform(bytes, cs.writable, cs.readable);
+  // 圧縮結果は入力より大きくならない前提で上限を 2 倍に設定 (安全側)。
+  return runTransform(bytes, cs.writable, cs.readable, Math.max(bytes.length * 2, 1024));
 }
 
-async function decompress(bytes: Uint8Array): Promise<Uint8Array> {
+async function decompress(bytes: Uint8Array, maxBytes: number): Promise<Uint8Array> {
   const ds = new DecompressionStream("deflate-raw");
-  return runTransform(bytes, ds.writable, ds.readable);
+  return runTransform(bytes, ds.writable, ds.readable, maxBytes);
 }
 
 function toBase64Url(bytes: Uint8Array): string {
@@ -103,12 +124,12 @@ export async function decodeSharedPlan(code: string): Promise<ShareDecodeResult>
 
   let decompressed: Uint8Array;
   try {
-    decompressed = await decompress(compressed);
-  } catch {
+    decompressed = await decompress(compressed, MAX_DECODED_BYTES);
+  } catch (e) {
+    if (e instanceof OutputTooLargeError) {
+      return { ok: false, error: "展開後のデータが大きすぎます" };
+    }
     return { ok: false, error: "共有コードの展開に失敗しました" };
-  }
-  if (decompressed.length > MAX_DECODED_BYTES) {
-    return { ok: false, error: "展開後のデータが大きすぎます" };
   }
 
   let parsed: unknown;
