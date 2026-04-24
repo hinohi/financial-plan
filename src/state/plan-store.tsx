@@ -398,7 +398,8 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     }
     savePlanById(state.registry.currentPlanId, state.plan);
     saveRegistry(state.registry);
-  }, [state]);
+    // 履歴のみ変化した場合に副作用を走らせないよう plan / registry を個別に依存させる
+  }, [state.plan, state.registry]);
 
   const planDispatch = useCallback((action: PlanAction) => {
     dispatch({ type: "plan", action, now: new Date().toISOString() });
