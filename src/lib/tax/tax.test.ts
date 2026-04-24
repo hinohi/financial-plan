@@ -125,4 +125,62 @@ describe("computeAnnualResidentTax", () => {
     expect(rt).toBeGreaterThan(200_000);
     expect(rt).toBeLessThan(260_000);
   });
+
+  it("扶養控除で税額が下がる", () => {
+    const si = computeAnnualSocialInsurance(6_000_000, 30).total;
+    const base = computeAnnualResidentTax({
+      annualGross: 6_000_000,
+      socialInsurance: si,
+      dependents: 0,
+      hasSpouseDeduction: false,
+    });
+    const withDeps = computeAnnualResidentTax({
+      annualGross: 6_000_000,
+      socialInsurance: si,
+      dependents: 2,
+      hasSpouseDeduction: true,
+    });
+    // 扶養 33万*2 + 配偶者 33万 = 99万 所得減 → 所得割 10% → 約 99,000 円減
+    expect(base - withDeps).toBeGreaterThan(90_000);
+  });
+});
+
+describe("computeIncomeTaxBase 境界値", () => {
+  it("195万ちょうどは 5% 区分", () => {
+    expect(computeIncomeTaxBase(1_950_000)).toBeCloseTo(97_500, 0);
+  });
+
+  it("330万ちょうどは 10% 区分末尾", () => {
+    // 330万 * 10% - 97,500 = 232,500
+    expect(computeIncomeTaxBase(3_300_000)).toBeCloseTo(232_500, 0);
+  });
+
+  it("695万ちょうどは 20% 区分末尾", () => {
+    expect(computeIncomeTaxBase(6_950_000)).toBeCloseTo(6_950_000 * 0.2 - 427_500, 0);
+  });
+
+  it("4000万超は最高税率 45%", () => {
+    const t = computeIncomeTaxBase(50_000_000);
+    expect(t).toBeCloseTo(50_000_000 * 0.45 - 4_796_000, 0);
+  });
+});
+
+describe("computeEmploymentIncomeDeduction 境界値", () => {
+  it("162.5万 → 55万 (固定)", () => {
+    expect(computeEmploymentIncomeDeduction(1_624_999)).toBe(550_000);
+    expect(computeEmploymentIncomeDeduction(1_625_000)).toBe(550_000);
+  });
+
+  it("180万 直後は 30% ベースに遷移", () => {
+    // 1,800,000 の境界: 1,800,000 * 0.4 - 100,000 = 620,000
+    expect(computeEmploymentIncomeDeduction(1_800_000)).toBe(620_000);
+    // 1,800,001 なら 30% 区分: floor(1,800,001 * 0.3) + 80,000 = 620,000
+    expect(computeEmploymentIncomeDeduction(1_800_001)).toBe(620_000);
+  });
+
+  it("850万以上は 195万で頭打ち", () => {
+    expect(computeEmploymentIncomeDeduction(8_500_000)).toBe(1_950_000);
+    expect(computeEmploymentIncomeDeduction(8_500_001)).toBe(1_950_000);
+    expect(computeEmploymentIncomeDeduction(100_000_000)).toBe(1_950_000);
+  });
 });
