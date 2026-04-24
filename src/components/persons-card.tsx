@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
 import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
 import { isValidYearMonth } from "@/lib/dsl/month";
@@ -37,7 +38,9 @@ export function PersonsCard() {
         <div className="flex items-start justify-between gap-2">
           <div>
             <CardTitle>人物</CardTitle>
-            <CardDescription>家族などの年齢を基準に年月を指定できるようになる。生年月は未来でも可</CardDescription>
+            <CardDescription>
+              家族などの年齢を基準に年月を指定できるようになる。生年月は未来でも可。前年年収は住民税の初年度計算に用いる（空欄なら初年度はゼロ）。
+            </CardDescription>
           </div>
           <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="人物" />
         </div>
@@ -74,7 +77,7 @@ export function PersonsCard() {
               items={plan.persons}
               onReorder={(order) => dispatch({ type: "persons/reorder", order })}
               renderItem={(person, handle) => (
-                <div className="grid gap-3 px-2 py-3 md:grid-cols-[32px_1fr_160px_auto] md:items-center">
+                <div className="grid gap-3 px-2 py-3 md:grid-cols-[32px_1fr_160px_200px_auto] md:items-center">
                   {handle}
                   <CommittedInput
                     aria-label="ラベル"
@@ -91,6 +94,24 @@ export function PersonsCard() {
                         type: "person/update",
                         id: person.id,
                         patch: { birthMonth: e.target.value as YearMonth },
+                      });
+                    }}
+                  />
+                  <NumericCommittedInput
+                    aria-label="計画開始前年の額面年収 (円)"
+                    placeholder="前年年収 (住民税初年度用)"
+                    value={person.previousYearIncome ?? ""}
+                    onCommit={(v) => {
+                      if (v === "") {
+                        dispatch({ type: "person/update", id: person.id, patch: { previousYearIncome: undefined } });
+                        return;
+                      }
+                      const n = Number(v);
+                      if (!Number.isFinite(n) || n < 0) return;
+                      dispatch({
+                        type: "person/update",
+                        id: person.id,
+                        patch: { previousYearIncome: n === 0 ? undefined : n },
                       });
                     }}
                   />

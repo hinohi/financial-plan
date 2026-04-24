@@ -16,6 +16,7 @@ import type {
   Category,
   Expense,
   FlowSegment,
+  GrossSalary,
   Income,
   LoanRateSegment,
   LoanSpec,
@@ -74,7 +75,11 @@ export type PlanAction =
   | { type: "accounts/reorder"; order: Ulid[] }
   | { type: "incomes/reorder"; order: Ulid[] }
   | { type: "expenses/reorder"; order: Ulid[] }
-  | { type: "transfers/reorder"; order: Ulid[] };
+  | { type: "transfers/reorder"; order: Ulid[] }
+  | { type: "gross-salary/add"; salary: GrossSalary }
+  | { type: "gross-salary/update"; id: Ulid; patch: Partial<Omit<GrossSalary, "id">> }
+  | { type: "gross-salary/remove"; id: Ulid }
+  | { type: "gross-salaries/reorder"; order: Ulid[] };
 
 function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<Omit<T, "id">>): T[] {
   return list.map((item) => (item.id === id ? { ...item, ...patch } : item));
@@ -106,6 +111,11 @@ function exprRefsPerson(expr: MonthExpr | undefined, personId: Ulid): boolean {
 
 function segmentRefsPerson(segment: FlowSegment, personId: Ulid): boolean {
   return exprRefsPerson(segment.startMonth, personId) || exprRefsPerson(segment.endMonth, personId);
+}
+
+function grossSalaryRefsPerson(salary: GrossSalary, personId: Ulid): boolean {
+  if (salary.personId === personId) return true;
+  return exprRefsPerson(salary.startMonth, personId) || exprRefsPerson(salary.endMonth, personId);
 }
 
 function loanRateSegmentRefsPerson(rs: LoanRateSegment, personId: Ulid): boolean {
@@ -157,6 +167,9 @@ function cascadePersonRemoval(state: Plan, personId: Ulid): Plan {
       !removedAccountIds.has(t.toAccountId) &&
       !t.segments.some((seg) => segmentRefsPerson(seg, personId)),
   );
+  const grossSalaries = state.grossSalaries.filter(
+    (s) => !removedAccountIds.has(s.accountId) && !grossSalaryRefsPerson(s, personId),
+  );
 
   const settings: PlanSettings = {
     ...state.settings,
@@ -174,6 +187,7 @@ function cascadePersonRemoval(state: Plan, personId: Ulid): Plan {
     expenses,
     events,
     transfers,
+    grossSalaries,
   };
 }
 
@@ -196,6 +210,7 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
         expenses: state.expenses.filter((e) => e.accountId !== action.id),
         events: state.events.filter((e) => e.accountId !== action.id),
         transfers: state.transfers.filter((t) => t.fromAccountId !== action.id && t.toAccountId !== action.id),
+        grossSalaries: state.grossSalaries.filter((s) => s.accountId !== action.id),
       };
     case "snapshot/add":
       return { ...state, snapshots: [...state.snapshots, action.snapshot] };
@@ -260,6 +275,14 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
       return { ...state, expenses: reorderItems(state.expenses, action.order) };
     case "transfers/reorder":
       return { ...state, transfers: reorderItems(state.transfers, action.order) };
+    case "gross-salary/add":
+      return { ...state, grossSalaries: [...state.grossSalaries, action.salary] };
+    case "gross-salary/update":
+      return { ...state, grossSalaries: updateItem(state.grossSalaries, action.id, action.patch) };
+    case "gross-salary/remove":
+      return { ...state, grossSalaries: removeItem(state.grossSalaries, action.id) };
+    case "gross-salaries/reorder":
+      return { ...state, grossSalaries: reorderItems(state.grossSalaries, action.order) };
   }
 }
 

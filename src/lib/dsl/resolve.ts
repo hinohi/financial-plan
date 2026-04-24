@@ -3,6 +3,7 @@ import type {
   Account,
   Expense,
   FlowSegment,
+  GrossSalary,
   Income,
   LiabilityParams,
   LoanRateSegment,
@@ -35,6 +36,10 @@ export type ResolvedExpense = Omit<Expense, "segments" | "loan"> & {
 };
 export type ResolvedEvent = Omit<OneShotEvent, "month"> & { month: YearMonth };
 export type ResolvedTransfer = Omit<Transfer, "segments"> & { segments: ResolvedFlowSegment[] };
+export type ResolvedGrossSalary = Omit<GrossSalary, "startMonth" | "endMonth"> & {
+  startMonth: YearMonth;
+  endMonth?: YearMonth;
+};
 export type ResolvedLiabilityParams = Omit<LiabilityParams, "startMonth"> & { startMonth: YearMonth };
 export type ResolvedAccount = Omit<Account, "liability"> & { liability?: ResolvedLiabilityParams };
 export type ResolvedPlanSettings = Omit<PlanSettings, "planStartMonth" | "planEndMonth"> & {
@@ -43,7 +48,7 @@ export type ResolvedPlanSettings = Omit<PlanSettings, "planStartMonth" | "planEn
 };
 export type ResolvedPlan = Omit<
   Plan,
-  "settings" | "accounts" | "snapshots" | "incomes" | "expenses" | "events" | "transfers"
+  "settings" | "accounts" | "snapshots" | "incomes" | "expenses" | "events" | "transfers" | "grossSalaries"
 > & {
   settings: ResolvedPlanSettings;
   accounts: ResolvedAccount[];
@@ -52,6 +57,7 @@ export type ResolvedPlan = Omit<
   expenses: ResolvedExpense[];
   events: ResolvedEvent[];
   transfers: ResolvedTransfer[];
+  grossSalaries: ResolvedGrossSalary[];
 };
 
 const FALLBACK_START: YearMonth = "1970-01";
@@ -159,6 +165,15 @@ export function resolvePlan(plan: Plan): ResolvedPlan {
     segments: resolveSegments(t.segments, persons, yearStart),
   }));
 
+  const grossSalaries: ResolvedGrossSalary[] = [];
+  for (const s of plan.grossSalaries ?? []) {
+    const start = tryResolve(s.startMonth, persons, yearStart);
+    if (start === null) continue;
+    const end = tryResolveOptional(s.endMonth, persons, yearStart);
+    if (!end.ok) continue;
+    grossSalaries.push({ ...s, startMonth: start, endMonth: end.value });
+  }
+
   return {
     ...plan,
     settings: { ...settings, planStartMonth, planEndMonth },
@@ -168,5 +183,6 @@ export function resolvePlan(plan: Plan): ResolvedPlan {
     expenses,
     events,
     transfers,
+    grossSalaries,
   };
 }

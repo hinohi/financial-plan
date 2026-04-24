@@ -1,13 +1,23 @@
-import { addMonths, compareYearMonth, iterateMonths, maxYearMonth, minYearMonth, monthDiff } from "@/lib/dsl/month";
+import {
+  addMonths,
+  compareYearMonth,
+  iterateMonths,
+  maxYearMonth,
+  minYearMonth,
+  monthDiff,
+  parseYearMonth,
+} from "@/lib/dsl/month";
 import {
   type ResolvedExpense,
   type ResolvedFlowSegment,
+  type ResolvedGrossSalary,
   type ResolvedLiabilityParams,
   type ResolvedLoanSpec,
   type ResolvedPlan,
   resolvePlan,
 } from "@/lib/dsl/resolve";
-import type { Account, MonthlyEntry, Plan, Ulid, YearMonth } from "@/lib/dsl/types";
+import type { Account, MonthlyEntry, Person, Plan, Ulid, YearMonth } from "@/lib/dsl/types";
+import { computeAnnualIncomeTax, computeAnnualResidentTax, computeAnnualSocialInsurance } from "@/lib/tax";
 
 function withinPlan(month: YearMonth, start: YearMonth, end: YearMonth): boolean {
   return compareYearMonth(month, start) >= 0 && compareYearMonth(month, end) <= 0;
@@ -191,6 +201,184 @@ export function loanTotalMonths(loan: ResolvedLoanSpec): number {
   return monthDiff(start, end) + 1;
 }
 
+export function computeSalaryAnnualAmount(salary: ResolvedGrossSalary, month: YearMonth): number {
+  const base = salary.annualAmount;
+  const raise = salary.raise;
+  if (!raise || raise.everyMonths <= 0) return base;
+  const delta = monthDiff(salary.startMonth, month);
+  if (delta <= 0) return base;
+  const steps = Math.floor(delta / raise.everyMonths);
+  if (steps <= 0) return base;
+  if (raise.kind === "fixed") return base + steps * raise.value;
+  return base * (1 + raise.value) ** steps;
+}
+
+/** その月の額面支給 (月割り)。年額を 12 等分する簡易モデル */
+export function computeSalaryMonthGross(salary: ResolvedGrossSalary, month: YearMonth): number {
+  return computeSalaryAnnualAmount(salary, month) / 12;
+}
+
+function ageYearsAt(person: Person, month: YearMonth): number {
+  const birth = parseYearMonth(person.birthMonth);
+  const cur = parseYearMonth(month);
+  let age = cur.year - birth.year;
+  if (cur.month < birth.month) age -= 1;
+  return age;
+}
+
+function salaryActiveOnMonth(salary: ResolvedGrossSalary, month: YearMonth): boolean {
+  if (compareYearMonth(month, salary.startMonth) < 0) return false;
+  if (salary.endMonth && compareYearMonth(month, salary.endMonth) > 0) return false;
+  return true;
+}
+
+type SalaryYearKey = `${Ulid}:${number}`;
+
+function salaryYearKey(salaryId: Ulid, year: number): SalaryYearKey {
+  return `${salaryId}:${year}`;
+}
+
+function computeAnnualGrossBySalaryYear(
+  salaries: ResolvedGrossSalary[],
+  planStart: YearMonth,
+  planEnd: YearMonth,
+): Map<SalaryYearKey, number> {
+  const out = new Map<SalaryYearKey, number>();
+  for (const salary of salaries) {
+    const start = maxYearMonth(salary.startMonth, planStart);
+    const end = minYearMonth(salary.endMonth ?? planEnd, planEnd);
+    if (compareYearMonth(start, end) > 0) continue;
+    for (const m of iterateMonths(start, end)) {
+      const gross = computeSalaryMonthGross(salary, m);
+      if (gross === 0) continue;
+      const { year } = parseYearMonth(m);
+      const key = salaryYearKey(salary.id, year);
+      out.set(key, (out.get(key) ?? 0) + gross);
+    }
+  }
+  return out;
+}
+
+function emitGrossSalaryEntries(
+  plan: ResolvedPlan,
+  planStart: YearMonth,
+  planEnd: YearMonth,
+  out: MonthlyEntry[],
+): void {
+  const salaries = plan.grossSalaries;
+  if (salaries.length === 0) return;
+  const personById = new Map<Ulid, Person>();
+  for (const p of plan.persons) personById.set(p.id, p);
+
+  const annualGrossByKey = computeAnnualGrossBySalaryYear(salaries, planStart, planEnd);
+  const planStartYear = parseYearMonth(planStart).year;
+
+  // 年ごとの所得税/社保額をキャッシュ (毎月の計算を避ける)
+  const annualTaxCache = new Map<SalaryYearKey, { socialInsurance: number; incomeTax: number }>();
+  const annualResidentCache = new Map<SalaryYearKey, number>();
+
+  for (const salary of salaries) {
+    const person = personById.get(salary.personId);
+    if (!person) continue;
+    const start = maxYearMonth(salary.startMonth, planStart);
+    const end = minYearMonth(salary.endMonth ?? planEnd, planEnd);
+    if (compareYearMonth(start, end) > 0) continue;
+    const dependents = Math.max(0, salary.dependents ?? 0);
+    const hasSpouseDeduction = !!salary.hasSpouseDeduction;
+
+    for (const month of iterateMonths(start, end)) {
+      if (!salaryActiveOnMonth(salary, month)) continue;
+      const { year } = parseYearMonth(month);
+
+      const gross = Math.trunc(computeSalaryMonthGross(salary, month));
+      if (gross !== 0) {
+        out.push({
+          month,
+          accountId: salary.accountId,
+          sourceId: salary.id,
+          sourceKind: "salary_gross",
+          amount: gross,
+        });
+      }
+
+      const annualGross = annualGrossByKey.get(salaryYearKey(salary.id, year)) ?? 0;
+      if (annualGross <= 0) continue;
+
+      const cacheKey = salaryYearKey(salary.id, year);
+      let yearTax = annualTaxCache.get(cacheKey);
+      if (!yearTax) {
+        const siAge = ageYearsAt(person, `${year}-01` as YearMonth);
+        const si = computeAnnualSocialInsurance(annualGross, siAge).total;
+        const it = computeAnnualIncomeTax({
+          annualGross,
+          socialInsurance: si,
+          dependents,
+          hasSpouseDeduction,
+        });
+        yearTax = { socialInsurance: si, incomeTax: it };
+        annualTaxCache.set(cacheKey, yearTax);
+      }
+
+      // 住民税は前年所得ベース。前年が計画範囲内なら実所得、計画開始年なら person.previousYearIncome、
+      // さらに古ければ 0。
+      let annualResident = annualResidentCache.get(cacheKey);
+      if (annualResident === undefined) {
+        const prevYear = year - 1;
+        let prevGross = 0;
+        if (prevYear >= planStartYear) {
+          prevGross = annualGrossByKey.get(salaryYearKey(salary.id, prevYear)) ?? 0;
+        } else if (prevYear === planStartYear - 1) {
+          prevGross = person.previousYearIncome ?? 0;
+        }
+        if (prevGross <= 0) {
+          annualResident = 0;
+        } else {
+          const prevAge = ageYearsAt(person, `${prevYear}-01` as YearMonth);
+          const prevSi = computeAnnualSocialInsurance(prevGross, prevAge).total;
+          annualResident = computeAnnualResidentTax({
+            annualGross: prevGross,
+            socialInsurance: prevSi,
+            dependents,
+            hasSpouseDeduction,
+          });
+        }
+        annualResidentCache.set(cacheKey, annualResident);
+      }
+
+      const siMonthly = Math.trunc(yearTax.socialInsurance / 12);
+      if (siMonthly > 0) {
+        out.push({
+          month,
+          accountId: salary.accountId,
+          sourceId: salary.id,
+          sourceKind: "social_insurance",
+          amount: -siMonthly,
+        });
+      }
+      const itMonthly = Math.trunc(yearTax.incomeTax / 12);
+      if (itMonthly > 0) {
+        out.push({
+          month,
+          accountId: salary.accountId,
+          sourceId: salary.id,
+          sourceKind: "income_tax",
+          amount: -itMonthly,
+        });
+      }
+      const rtMonthly = Math.trunc(annualResident / 12);
+      if (rtMonthly > 0) {
+        out.push({
+          month,
+          accountId: salary.accountId,
+          sourceId: salary.id,
+          sourceKind: "resident_tax",
+          amount: -rtMonthly,
+        });
+      }
+    }
+  }
+}
+
 function buildStaticEntriesByMonth(plan: ResolvedPlan): Map<YearMonth, MonthlyEntry[]> {
   const { planStartMonth: start, planEndMonth: end } = plan.settings;
   const tmp: MonthlyEntry[] = [];
@@ -237,6 +425,7 @@ function buildStaticEntriesByMonth(plan: ResolvedPlan): Map<YearMonth, MonthlyEn
       emitTransferSegment(transfer.fromAccountId, transfer.toAccountId, transfer.id, segment, start, end, tmp);
     }
   }
+  emitGrossSalaryEntries(plan, start, end, tmp);
 
   const byMonth = new Map<YearMonth, MonthlyEntry[]>();
   for (const entry of tmp) {

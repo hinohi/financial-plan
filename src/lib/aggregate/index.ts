@@ -20,12 +20,23 @@ export const UNCATEGORIZED_KEY = "__uncategorized__";
 export const SYSTEM_INTEREST_KEY = "__interest__";
 export const SYSTEM_DEPRECIATION_KEY = "__depreciation__";
 export const SYSTEM_LOAN_INTEREST_KEY = "__loan_interest__";
+export const SYSTEM_SALARY_GROSS_KEY = "__salary_gross__";
+export const SYSTEM_SOCIAL_INSURANCE_KEY = "__social_insurance__";
+export const SYSTEM_INCOME_TAX_KEY = "__income_tax__";
+export const SYSTEM_RESIDENT_TAX_KEY = "__resident_tax__";
+/** top 集計時に社会保険料・所得税・住民税をまとめる大項目 */
+export const SYSTEM_TAX_KEY = "__tax__";
 
 export const SYSTEM_CATEGORY_LABEL: Record<string, string> = {
   [UNCATEGORIZED_KEY]: "未分類",
   [SYSTEM_INTEREST_KEY]: "運用益",
   [SYSTEM_DEPRECIATION_KEY]: "減価",
   [SYSTEM_LOAN_INTEREST_KEY]: "支払利息",
+  [SYSTEM_SALARY_GROSS_KEY]: "給与(額面)",
+  [SYSTEM_SOCIAL_INSURANCE_KEY]: "社会保険料",
+  [SYSTEM_INCOME_TAX_KEY]: "所得税",
+  [SYSTEM_RESIDENT_TAX_KEY]: "住民税",
+  [SYSTEM_TAX_KEY]: "税金",
 };
 
 export type CategoryGroup = "leaf" | "top";
@@ -143,6 +154,17 @@ function resolveCategoryKey(
   if (entry.sourceKind === "interest") return SYSTEM_INTEREST_KEY;
   if (entry.sourceKind === "depreciation") return SYSTEM_DEPRECIATION_KEY;
   if (entry.sourceKind === "loan_interest") return SYSTEM_LOAN_INTEREST_KEY;
+  if (entry.sourceKind === "salary_gross") return SYSTEM_SALARY_GROSS_KEY;
+  if (
+    entry.sourceKind === "social_insurance" ||
+    entry.sourceKind === "income_tax" ||
+    entry.sourceKind === "resident_tax"
+  ) {
+    if (group === "top") return SYSTEM_TAX_KEY;
+    if (entry.sourceKind === "social_insurance") return SYSTEM_SOCIAL_INSURANCE_KEY;
+    if (entry.sourceKind === "income_tax") return SYSTEM_INCOME_TAX_KEY;
+    return SYSTEM_RESIDENT_TAX_KEY;
+  }
   const categoryId = entry.categoryId;
   if (!categoryId) return UNCATEGORIZED_KEY;
   const category = byId.get(categoryId);
@@ -156,6 +178,7 @@ function matchesKind(entry: MonthlyEntry, kind: CategoryKind): boolean {
     return (
       entry.sourceKind === "income" ||
       entry.sourceKind === "interest" ||
+      entry.sourceKind === "salary_gross" ||
       (entry.sourceKind === "event" && entry.amount > 0)
     );
   }
@@ -164,6 +187,9 @@ function matchesKind(entry: MonthlyEntry, kind: CategoryKind): boolean {
       entry.sourceKind === "expense" ||
       entry.sourceKind === "depreciation" ||
       entry.sourceKind === "loan_interest" ||
+      entry.sourceKind === "social_insurance" ||
+      entry.sourceKind === "income_tax" ||
+      entry.sourceKind === "resident_tax" ||
       (entry.sourceKind === "event" && entry.amount < 0)
     );
   }
@@ -211,7 +237,16 @@ export function aggregateFlow(
     if (group === "top" && category.parentId) continue;
     if (usedKeys.has(category.id)) categoryOrder.push(category.id);
   }
-  const systemKeysOrder = [SYSTEM_INTEREST_KEY, SYSTEM_DEPRECIATION_KEY, SYSTEM_LOAN_INTEREST_KEY];
+  const systemKeysOrder = [
+    SYSTEM_SALARY_GROSS_KEY,
+    SYSTEM_INTEREST_KEY,
+    SYSTEM_TAX_KEY,
+    SYSTEM_SOCIAL_INSURANCE_KEY,
+    SYSTEM_INCOME_TAX_KEY,
+    SYSTEM_RESIDENT_TAX_KEY,
+    SYSTEM_DEPRECIATION_KEY,
+    SYSTEM_LOAN_INTEREST_KEY,
+  ];
   for (const key of systemKeysOrder) {
     if (usedKeys.has(key)) categoryOrder.push(key);
   }

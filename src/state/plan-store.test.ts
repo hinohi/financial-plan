@@ -55,6 +55,7 @@ function seed(): Plan {
       },
     ],
     categories: [],
+    grossSalaries: [],
   };
 }
 
@@ -72,6 +73,7 @@ describe("planReducer", () => {
       events: [],
       transfers: [],
       categories: [],
+      grossSalaries: [],
     };
     expect(planReducer(state, { type: "plan/replace", plan: next })).toBe(next);
   });

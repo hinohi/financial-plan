@@ -189,6 +189,7 @@ describe("export/import round-trip", () => {
       events: [],
       transfers: [],
       categories: [],
+      grossSalaries: [],
     };
     const json = exportPlanJson(plan);
     const parsed = parsePlanJson(json);

@@ -6,6 +6,8 @@ export type Person = {
   id: Ulid;
   label: string;
   birthMonth: YearMonth;
+  /** 計画開始前年の額面年収。住民税の初年度計算に用いる */
+  previousYearIncome?: number;
 };
 
 export type PersonAgeMonth = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
@@ -101,6 +103,24 @@ export type Income = {
   segments: FlowSegment[];
 };
 
+export type GrossSalary = {
+  id: Ulid;
+  label: string;
+  accountId: Ulid;
+  personId: Ulid;
+  /** 額面年収 (源泉徴収票の支払金額相当) */
+  annualAmount: number;
+  startMonth: MonthExpr;
+  endMonth?: MonthExpr;
+  /** annualAmount に対する昇給 */
+  raise?: FlowRaise;
+  /** 税法上の扶養親族数 (配偶者を除く) */
+  dependents?: number;
+  /** 配偶者控除を適用するか */
+  hasSpouseDeduction?: boolean;
+  note?: string;
+};
+
 export type LoanRateSegment = {
   startMonth: MonthExpr;
   endMonth?: MonthExpr;
@@ -175,6 +195,7 @@ export type Plan = {
   events: OneShotEvent[];
   transfers: Transfer[];
   categories: Category[];
+  grossSalaries: GrossSalary[];
 };
 
 export type MonthlyEntrySourceKind =
@@ -186,7 +207,11 @@ export type MonthlyEntrySourceKind =
   | "interest"
   | "depreciation"
   | "loan_interest"
-  | "loan_principal";
+  | "loan_principal"
+  | "salary_gross"
+  | "social_insurance"
+  | "income_tax"
+  | "resident_tax";
 
 export type MonthlyEntry = {
   month: YearMonth;

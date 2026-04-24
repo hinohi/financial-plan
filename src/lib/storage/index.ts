@@ -54,7 +54,11 @@ function hydratePersons(raw: unknown): Person[] {
     if (!v || typeof v !== "object") continue;
     const p = v as Partial<Person>;
     if (typeof p.id !== "string" || typeof p.label !== "string" || typeof p.birthMonth !== "string") continue;
-    out.push({ id: p.id, label: p.label, birthMonth: p.birthMonth });
+    const person: Person = { id: p.id, label: p.label, birthMonth: p.birthMonth };
+    if (typeof p.previousYearIncome === "number" && Number.isFinite(p.previousYearIncome)) {
+      person.previousYearIncome = p.previousYearIncome;
+    }
+    out.push(person);
   }
   return out;
 }
@@ -75,6 +79,7 @@ export function hydratePlan(raw: unknown): Plan | null {
     events: p.events ?? [],
     transfers: p.transfers ?? [],
     categories: hydrateCategories(p.categories),
+    grossSalaries: Array.isArray(p.grossSalaries) ? p.grossSalaries : [],
   };
 }
 

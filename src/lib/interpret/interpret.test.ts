@@ -24,6 +24,7 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
     events: [],
     transfers: [],
     categories: [],
+    grossSalaries: [],
     ...overrides,
   };
 }
@@ -549,6 +550,7 @@ describe("investment interest", () => {
       transfers: [],
       categories: [],
       persons: [],
+      grossSalaries: [],
     };
     const entries = interpret(plan);
     // 2026-01: 月初 0 → 利息なし、snapshot で 10000 に上書き
@@ -580,6 +582,7 @@ describe("investment interest", () => {
       transfers: [],
       categories: [],
       persons: [],
+      grossSalaries: [],
     };
     expect(interpret(plan).some((e) => e.sourceKind === "interest")).toBe(false);
   });
@@ -605,6 +608,7 @@ describe("property depreciation", () => {
       transfers: [],
       categories: [],
       persons: [],
+      grossSalaries: [],
     };
     const entries = interpret(plan);
     const rate = monthlyCompoundRate(-0.05);
@@ -674,6 +678,7 @@ describe("liability schedule", () => {
       transfers: [],
       categories: [],
       persons: [],
+      grossSalaries: [],
     };
     const entries = interpret(plan);
     const jan = entries.filter((e) => e.month === "2026-01");
@@ -711,6 +716,7 @@ describe("liability schedule", () => {
       transfers: [],
       categories: [],
       persons: [],
+      grossSalaries: [],
     };
     expect(interpret(plan).some((e) => e.sourceKind === "loan_interest" || e.sourceKind === "loan_principal")).toBe(
       false,
@@ -753,6 +759,7 @@ describe("loan expense", () => {
       transfers: [],
       categories: [],
       persons: [],
+      grossSalaries: [],
     };
     const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
     expect(entries).toHaveLength(12);
@@ -784,6 +791,7 @@ describe("loan expense", () => {
       transfers: [],
       categories: [],
       persons: [],
+      grossSalaries: [],
     };
     const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
     expect(entries.map((e) => e.month)).toEqual(["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]);
@@ -815,6 +823,7 @@ describe("loan expense", () => {
       transfers: [],
       categories: [],
       persons: [],
+      grossSalaries: [],
     };
     const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
     expect(entries).toHaveLength(24);
@@ -854,6 +863,7 @@ describe("loan expense", () => {
       events: [],
       transfers: [],
       categories: [],
+      grossSalaries: [],
     };
     const entries = interpret(plan).filter((e) => e.sourceId === "e-kid");
     const months = entries.map((e) => e.month);
@@ -866,6 +876,7 @@ describe("loan expense", () => {
       schemaVersion: 1,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2030-12" },
       persons: [],
+      grossSalaries: [],
       accounts: [{ id: "a1", label: "cash", kind: "cash" }],
       snapshots: [
         { id: "s-ok", accountId: "a1", month: "2026-02", balance: 111 },
@@ -884,6 +895,100 @@ describe("loan expense", () => {
     };
     const entries = interpret(plan);
     expect(entries.map((e) => e.sourceId)).toEqual(["s-ok"]);
+  });
+
+  test("gross salary は毎月 salary_gross/social_insurance/income_tax エントリを発行する", () => {
+    const plan = basePlan({
+      persons: [{ id: "p1", label: "自分", birthMonth: "1990-01" }],
+      grossSalaries: [
+        {
+          id: "g1",
+          label: "本業",
+          accountId: "a1",
+          personId: "p1",
+          annualAmount: 6_000_000,
+          startMonth: "2026-01",
+        },
+      ],
+    });
+    const entries = interpret(plan);
+    const kinds = new Set(entries.map((e) => e.sourceKind));
+    expect(kinds.has("salary_gross")).toBe(true);
+    expect(kinds.has("social_insurance")).toBe(true);
+    expect(kinds.has("income_tax")).toBe(true);
+    // 計画開始前年の所得がないので初年度の住民税はゼロ
+    expect(kinds.has("resident_tax")).toBe(false);
+    // 各月 1件の salary_gross (年額 / 12)
+    const grossEntries = entries.filter((e) => e.sourceKind === "salary_gross");
+    expect(grossEntries).toHaveLength(12);
+    expect(grossEntries.every((e) => e.amount === 500_000)).toBe(true);
+  });
+
+  test("年額が 12 で割り切れない場合も各月同額で出力される (端数は切り捨て)", () => {
+    const plan = basePlan({
+      persons: [{ id: "p1", label: "自分", birthMonth: "1990-01" }],
+      grossSalaries: [
+        {
+          id: "g1",
+          label: "本業",
+          accountId: "a1",
+          personId: "p1",
+          annualAmount: 5_000_000,
+          startMonth: "2026-01",
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "salary_gross");
+    // 5,000,000 / 12 = 416,666.666... → 416,666
+    expect(entries.every((e) => e.amount === 416_666)).toBe(true);
+  });
+
+  test("previousYearIncome を指定すると初年度から住民税が発生する", () => {
+    const plan = basePlan({
+      persons: [
+        {
+          id: "p1",
+          label: "自分",
+          birthMonth: "1990-01",
+          previousYearIncome: 5_000_000,
+        },
+      ],
+      grossSalaries: [
+        {
+          id: "g1",
+          label: "本業",
+          accountId: "a1",
+          personId: "p1",
+          annualAmount: 4_800_000,
+          startMonth: "2026-01",
+        },
+      ],
+    });
+    const entries = interpret(plan);
+    const residentEntries = entries.filter((e) => e.sourceKind === "resident_tax");
+    expect(residentEntries.length).toBe(12);
+    expect(residentEntries.every((e) => e.amount < 0)).toBe(true);
+  });
+
+  test("gross salary は終了月を過ぎると停止する", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      persons: [{ id: "p1", label: "自分", birthMonth: "1990-01" }],
+      grossSalaries: [
+        {
+          id: "g1",
+          label: "本業",
+          accountId: "a1",
+          personId: "p1",
+          annualAmount: 4_800_000,
+          startMonth: "2026-01",
+          endMonth: "2026-06",
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "salary_gross");
+    expect(entries.length).toBe(6);
+    expect(entries[entries.length - 1]?.month).toBe("2026-06");
   });
 
   test("loan を持つ expense は segments より loan 側が優先される", () => {
@@ -909,6 +1014,7 @@ describe("loan expense", () => {
       transfers: [],
       categories: [],
       persons: [],
+      grossSalaries: [],
     };
     const entries = interpret(plan).filter((e) => e.sourceId === "e-loan");
     expect(entries).toHaveLength(3);

@@ -5,8 +5,12 @@ import {
   aggregate,
   aggregateFlow,
   SYSTEM_DEPRECIATION_KEY,
+  SYSTEM_INCOME_TAX_KEY,
   SYSTEM_INTEREST_KEY,
   SYSTEM_LOAN_INTEREST_KEY,
+  SYSTEM_RESIDENT_TAX_KEY,
+  SYSTEM_SOCIAL_INSURANCE_KEY,
+  SYSTEM_TAX_KEY,
   UNCATEGORIZED_KEY,
 } from "./index";
 
@@ -26,6 +30,7 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
     events: [],
     transfers: [],
     categories: [],
+    grossSalaries: [],
     ...overrides,
   };
 }
@@ -274,6 +279,47 @@ describe("aggregateFlow", () => {
     expect(top.categoryOrder).toEqual(["c-food"]);
     expect(top.points[0]?.byCategory).toEqual({ "c-food": 70 });
     expect(top.points[0]?.total).toBe(70);
+  });
+
+  test("top 集計では社保・所得税・住民税が税金にまとめられ、leaf では個別に出る", () => {
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      persons: [{ id: "p1", label: "自分", birthMonth: "1990-01", previousYearIncome: 5_000_000 }],
+      grossSalaries: [
+        {
+          id: "g1",
+          label: "本業",
+          accountId: "a1",
+          personId: "p1",
+          annualAmount: 6_000_000,
+          startMonth: "2026-01",
+        },
+      ],
+    });
+    const entries = interpret(plan);
+    const leaf = aggregateFlow(plan, entries, { kind: "expense", period: "yearly", group: "leaf" });
+    expect(leaf.categoryOrder).toContain(SYSTEM_SOCIAL_INSURANCE_KEY);
+    expect(leaf.categoryOrder).toContain(SYSTEM_INCOME_TAX_KEY);
+    expect(leaf.categoryOrder).toContain(SYSTEM_RESIDENT_TAX_KEY);
+    expect(leaf.categoryOrder).not.toContain(SYSTEM_TAX_KEY);
+
+    const top = aggregateFlow(plan, entries, { kind: "expense", period: "yearly", group: "top" });
+    expect(top.categoryOrder).toContain(SYSTEM_TAX_KEY);
+    expect(top.categoryOrder).not.toContain(SYSTEM_SOCIAL_INSURANCE_KEY);
+    expect(top.categoryOrder).not.toContain(SYSTEM_INCOME_TAX_KEY);
+    expect(top.categoryOrder).not.toContain(SYSTEM_RESIDENT_TAX_KEY);
+
+    // top の税金合計 = leaf の3種合計
+    const leafTotal = leaf.points.reduce(
+      (s, p) =>
+        s +
+        (p.byCategory[SYSTEM_SOCIAL_INSURANCE_KEY] ?? 0) +
+        (p.byCategory[SYSTEM_INCOME_TAX_KEY] ?? 0) +
+        (p.byCategory[SYSTEM_RESIDENT_TAX_KEY] ?? 0),
+      0,
+    );
+    const topTotal = top.points.reduce((s, p) => s + (p.byCategory[SYSTEM_TAX_KEY] ?? 0), 0);
+    expect(topTotal).toBe(leafTotal);
   });
 
   test("events は kind=income/expense 集計に符号に応じて参加する", () => {
