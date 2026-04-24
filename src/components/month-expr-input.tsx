@@ -188,6 +188,7 @@ function PersonRefRow({
           min={0}
           value={age}
           onChange={(e) => onAgeChange(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
           aria-label="年齢"
           title="歳"
         />

@@ -22,6 +22,7 @@ export function NumericInput({ value, onChange, onFocus, onBlur, ...rest }: Prop
       onChange={(e) => onChange(stripCommas(e.target.value))}
       onFocus={(e) => {
         setFocused(true);
+        e.currentTarget.select();
         onFocus?.(e);
       }}
       onBlur={(e) => {

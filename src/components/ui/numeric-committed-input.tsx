@@ -42,6 +42,7 @@ export function NumericCommittedInput({ value, onCommit, onFocus, onBlur, onKeyD
       onChange={(e) => setDraft(stripCommas(e.target.value))}
       onFocus={(e) => {
         setFocused(true);
+        e.currentTarget.select();
         onFocus?.(e);
       }}
       onBlur={(e) => {
