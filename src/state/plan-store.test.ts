@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Plan } from "@/lib/dsl/types";
-import { planReducer } from "./plan-store";
+import type { PlanMeta, Registry } from "@/lib/storage";
+import { appReducer, HISTORY_LIMIT, planReducer } from "./plan-store";
 
 function seed(): Plan {
   return {
@@ -398,5 +399,207 @@ describe("planReducer", () => {
     };
     const next = planReducer(wired, { type: "person/remove", id: "p1" });
     expect(next.settings.planStartMonth).toBe("2020-01");
+  });
+});
+
+function meta(id: string, name = id): PlanMeta {
+  return { id, name, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" };
+}
+
+function registry(current: string, ids: string[]): Registry {
+  return { plans: ids.map((id) => meta(id)), currentPlanId: current };
+}
+
+type TestAppState = {
+  registry: Registry;
+  plan: Plan;
+  history: { past: Plan[]; future: Plan[] };
+};
+
+function initial(): TestAppState {
+  return {
+    registry: registry("plan1", ["plan1"]),
+    plan: seed(),
+    history: { past: [], future: [] },
+  };
+}
+
+const NOW = "2026-02-01T00:00:00.000Z";
+
+describe("appReducer: undo/redo", () => {
+  test("plan action で past に旧 plan が push され future はクリアされる", () => {
+    const s0 = initial();
+    const s1 = appReducer(s0, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "財布" } },
+      now: NOW,
+    });
+    expect(s1.plan.accounts[0]?.label).toBe("財布");
+    expect(s1.history.past).toHaveLength(1);
+    expect(s1.history.past[0]).toBe(s0.plan);
+    expect(s1.history.future).toEqual([]);
+  });
+
+  test("undo で past の最後の plan が current に戻り、現在 plan が future に積まれる", () => {
+    const s0 = initial();
+    const s1 = appReducer(s0, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "財布" } },
+      now: NOW,
+    });
+    const s2 = appReducer(s1, { type: "history/undo", now: NOW });
+    expect(s2.plan).toBe(s0.plan);
+    expect(s2.history.past).toEqual([]);
+    expect(s2.history.future).toHaveLength(1);
+    expect(s2.history.future[0]).toBe(s1.plan);
+  });
+
+  test("redo で future から plan が取り出される", () => {
+    const s0 = initial();
+    const s1 = appReducer(s0, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "財布" } },
+      now: NOW,
+    });
+    const s2 = appReducer(s1, { type: "history/undo", now: NOW });
+    const s3 = appReducer(s2, { type: "history/redo", now: NOW });
+    expect(s3.plan).toBe(s1.plan);
+    expect(s3.history.future).toEqual([]);
+    expect(s3.history.past).toHaveLength(1);
+    expect(s3.history.past[0]).toBe(s0.plan);
+  });
+
+  test("undo 後に新しい plan action を打つと future はクリアされる", () => {
+    const s0 = initial();
+    const s1 = appReducer(s0, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "A" } },
+      now: NOW,
+    });
+    const s2 = appReducer(s1, { type: "history/undo", now: NOW });
+    expect(s2.history.future).toHaveLength(1);
+    const s3 = appReducer(s2, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "B" } },
+      now: NOW,
+    });
+    expect(s3.history.future).toEqual([]);
+    expect(s3.plan.accounts[0]?.label).toBe("B");
+  });
+
+  test("past が空の時の undo は no-op", () => {
+    const s0 = initial();
+    const s1 = appReducer(s0, { type: "history/undo", now: NOW });
+    expect(s1).toBe(s0);
+  });
+
+  test("future が空の時の redo は no-op", () => {
+    const s0 = initial();
+    const s1 = appReducer(s0, { type: "history/redo", now: NOW });
+    expect(s1).toBe(s0);
+  });
+
+  test(`HISTORY_LIMIT (${HISTORY_LIMIT}) を超えたら古い past から捨てる`, () => {
+    let s: TestAppState = initial();
+    const firstPlan = s.plan;
+    for (let i = 0; i < HISTORY_LIMIT + 5; i++) {
+      s = appReducer(s, {
+        type: "plan",
+        action: { type: "account/update", id: "a1", patch: { label: `L${i}` } },
+        now: NOW,
+      });
+    }
+    expect(s.history.past).toHaveLength(HISTORY_LIMIT);
+    // 先頭は捨てられているので最初の plan はもう past にない
+    expect(s.history.past[0]).not.toBe(firstPlan);
+  });
+
+  test("registry/select は history をリセットする", () => {
+    const s0 = initial();
+    const s1 = appReducer(s0, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "A" } },
+      now: NOW,
+    });
+    const otherPlan = seed();
+    const s2 = appReducer(
+      { ...s1, registry: registry("plan1", ["plan1", "plan2"]) },
+      { type: "registry/select", id: "plan2", plan: otherPlan },
+    );
+    expect(s2.history).toEqual({ past: [], future: [] });
+    expect(s2.plan).toBe(otherPlan);
+  });
+
+  test("registry/create は history をリセットする", () => {
+    const s0 = initial();
+    const s1 = appReducer(s0, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "A" } },
+      now: NOW,
+    });
+    const newPlan = seed();
+    const s2 = appReducer(s1, { type: "registry/create", meta: meta("plan2"), plan: newPlan });
+    expect(s2.history).toEqual({ past: [], future: [] });
+  });
+
+  test("registry/delete: 現在プランが差し替わる場合は history をリセット", () => {
+    const s0: TestAppState = {
+      registry: registry("plan1", ["plan1", "plan2"]),
+      plan: seed(),
+      history: { past: [], future: [] },
+    };
+    const s1 = appReducer(s0, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "A" } },
+      now: NOW,
+    });
+    expect(s1.history.past).toHaveLength(1);
+    const nextPlan = seed();
+    const s2 = appReducer(s1, { type: "registry/delete", id: "plan1", nextCurrentId: "plan2", nextPlan });
+    expect(s2.history).toEqual({ past: [], future: [] });
+  });
+
+  test("registry/delete: 別プランの削除では現在プランの history を保つ", () => {
+    const s0: TestAppState = {
+      registry: registry("plan1", ["plan1", "plan2"]),
+      plan: seed(),
+      history: { past: [], future: [] },
+    };
+    const s1 = appReducer(s0, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "A" } },
+      now: NOW,
+    });
+    const s2 = appReducer(s1, {
+      type: "registry/delete",
+      id: "plan2",
+      nextCurrentId: "plan1",
+      nextPlan: s1.plan,
+    });
+    expect(s2.history.past).toHaveLength(1);
+  });
+
+  test("registry/rename は history に影響しない", () => {
+    const s0 = initial();
+    const s1 = appReducer(s0, {
+      type: "plan",
+      action: { type: "account/update", id: "a1", patch: { label: "A" } },
+      now: NOW,
+    });
+    const s2 = appReducer(s1, { type: "registry/rename", id: "plan1", name: "改名", now: NOW });
+    expect(s2.history).toBe(s1.history);
+  });
+
+  test("registry/replace-current は past に積まれる (undo で戻せる)", () => {
+    const s0 = initial();
+    const replacement: Plan = {
+      ...seed(),
+      accounts: [{ id: "zz", label: "新", kind: "cash" }],
+    };
+    const s1 = appReducer(s0, { type: "registry/replace-current", plan: replacement, now: NOW });
+    expect(s1.history.past).toHaveLength(1);
+    expect(s1.history.past[0]).toBe(s0.plan);
+    const s2 = appReducer(s1, { type: "history/undo", now: NOW });
+    expect(s2.plan).toBe(s0.plan);
   });
 });

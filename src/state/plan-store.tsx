@@ -286,9 +286,24 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
   }
 }
 
+// undo/redo の履歴上限。プラン 1 つあたりセッション内で保持するスナップショット数。
+export const HISTORY_LIMIT = 100;
+
+type History = { past: Plan[]; future: Plan[] };
+
+const emptyHistory: History = { past: [], future: [] };
+
+function pushPast(past: Plan[], plan: Plan): Plan[] {
+  if (past.length >= HISTORY_LIMIT) {
+    return [...past.slice(past.length - HISTORY_LIMIT + 1), plan];
+  }
+  return [...past, plan];
+}
+
 type AppState = {
   registry: Registry;
   plan: Plan;
+  history: History;
 };
 
 type AppAction =
@@ -297,7 +312,9 @@ type AppAction =
   | { type: "registry/create"; meta: PlanMeta; plan: Plan }
   | { type: "registry/delete"; id: Ulid; nextCurrentId: Ulid; nextPlan: Plan }
   | { type: "registry/rename"; id: Ulid; name: string; now: string }
-  | { type: "registry/replace-current"; plan: Plan; now: string };
+  | { type: "registry/replace-current"; plan: Plan; now: string }
+  | { type: "history/undo"; now: string }
+  | { type: "history/redo"; now: string };
 
 function touchMeta(registry: Registry, id: Ulid, now: string): Registry {
   return {
@@ -306,7 +323,7 @@ function touchMeta(registry: Registry, id: Ulid, now: string): Registry {
   };
 }
 
-function appReducer(state: AppState, action: AppAction): AppState {
+export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "plan": {
       const nextPlan = planReducer(state.plan, action.action);
@@ -314,20 +331,29 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         registry: touchMeta(state.registry, state.registry.currentPlanId, action.now),
         plan: nextPlan,
+        history: { past: pushPast(state.history.past, state.plan), future: [] },
       };
     }
     case "registry/select":
-      return { registry: { ...state.registry, currentPlanId: action.id }, plan: action.plan };
+      return {
+        registry: { ...state.registry, currentPlanId: action.id },
+        plan: action.plan,
+        history: emptyHistory,
+      };
     case "registry/create":
       return {
         registry: { plans: [...state.registry.plans, action.meta], currentPlanId: action.meta.id },
         plan: action.plan,
+        history: emptyHistory,
       };
     case "registry/delete": {
       const plans = state.registry.plans.filter((p) => p.id !== action.id);
+      // 現在プランが差し替わる場合のみ履歴をリセット。別プランの削除では現在プランの履歴を保つ。
+      const historyChanged = action.nextCurrentId !== state.registry.currentPlanId;
       return {
         registry: { plans, currentPlanId: action.nextCurrentId },
         plan: action.nextPlan,
+        history: historyChanged ? emptyHistory : state.history,
       };
     }
     case "registry/rename":
@@ -344,13 +370,38 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         registry: touchMeta(state.registry, state.registry.currentPlanId, action.now),
         plan: action.plan,
+        history: { past: pushPast(state.history.past, state.plan), future: [] },
       };
+    case "history/undo": {
+      const { past, future } = state.history;
+      const prev = past[past.length - 1];
+      if (!prev) return state;
+      return {
+        registry: touchMeta(state.registry, state.registry.currentPlanId, action.now),
+        plan: prev,
+        history: { past: past.slice(0, -1), future: [...future, state.plan] },
+      };
+    }
+    case "history/redo": {
+      const { past, future } = state.history;
+      const next = future[future.length - 1];
+      if (!next) return state;
+      return {
+        registry: touchMeta(state.registry, state.registry.currentPlanId, action.now),
+        plan: next,
+        history: { past: [...past, state.plan], future: future.slice(0, -1) },
+      };
+    }
   }
 }
 
 type PlanContextValue = {
   plan: Plan;
   dispatch: (action: PlanAction) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 };
 
 type RegistryContextValue = {
@@ -375,7 +426,7 @@ const RegistryContext = createContext<RegistryContextValue | null>(null);
 function initialState(): AppState {
   const boot = bootstrap();
   const plan = boot.plans[boot.registry.currentPlanId] ?? emptyPlan();
-  return { registry: boot.registry, plan };
+  return { registry: boot.registry, plan, history: emptyHistory };
 }
 
 const SHARE_IMPORT_PLAN_NAME = "共有から取り込んだプラン";
@@ -396,6 +447,14 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
   const planDispatch = useCallback((action: PlanAction) => {
     dispatch({ type: "plan", action, now: new Date().toISOString() });
+  }, []);
+
+  const undo = useCallback(() => {
+    dispatch({ type: "history/undo", now: new Date().toISOString() });
+  }, []);
+
+  const redo = useCallback(() => {
+    dispatch({ type: "history/redo", now: new Date().toISOString() });
   }, []);
 
   const registryRef = useRef(state.registry);
@@ -504,9 +563,11 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const canUndo = state.history.past.length > 0;
+  const canRedo = state.history.future.length > 0;
   const planValue = useMemo<PlanContextValue>(
-    () => ({ plan: state.plan, dispatch: planDispatch }),
-    [state.plan, planDispatch],
+    () => ({ plan: state.plan, dispatch: planDispatch, undo, redo, canUndo, canRedo }),
+    [state.plan, planDispatch, undo, redo, canUndo, canRedo],
   );
   const registryValue = useMemo<RegistryContextValue>(
     () => ({
