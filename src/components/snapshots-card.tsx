@@ -4,6 +4,7 @@ import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommittedInput } from "@/components/ui/committed-input";
+import { CommittedTextarea } from "@/components/ui/committed-textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -145,6 +146,11 @@ export function SnapshotsCard() {
                           ) : null}
                         </span>
                         <span className="font-mono tabular-nums">{formatYen(s.balance)}</span>
+                        {s.note ? (
+                          <span className="line-clamp-1 text-xs text-muted-foreground" title={s.note}>
+                            📝 {s.note}
+                          </span>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : s.id)}>
@@ -179,45 +185,59 @@ function SnapshotEditor({ snapshot }: { snapshot: Snapshot }) {
   };
 
   return (
-    <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[1fr_200px_1fr] md:items-end">
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${snapshot.id}-account`}>口座</Label>
-        <Select value={snapshot.accountId} onValueChange={(v) => update({ accountId: v })}>
-          <SelectTrigger id={`${snapshot.id}-account`} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {plan.accounts.map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {a.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4">
+      <div className="grid gap-3 md:grid-cols-[1fr_200px_1fr] md:items-end">
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${snapshot.id}-account`}>口座</Label>
+          <Select value={snapshot.accountId} onValueChange={(v) => update({ accountId: v })}>
+            <SelectTrigger id={`${snapshot.id}-account`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {plan.accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${snapshot.id}-month`}>年月</Label>
+          <MonthExprInput
+            id={`${snapshot.id}-month`}
+            value={snapshot.month}
+            onChange={(v) => {
+              if (!v) return;
+              update({ month: v });
+            }}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${snapshot.id}-balance`}>残高 (円)</Label>
+          <CommittedInput
+            id={`${snapshot.id}-balance`}
+            type="number"
+            inputMode="numeric"
+            value={snapshot.balance}
+            onCommit={(v) => {
+              const n = Number(v);
+              if (!Number.isFinite(n)) return;
+              update({ balance: n });
+            }}
+          />
+        </div>
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor={`${snapshot.id}-month`}>年月</Label>
-        <MonthExprInput
-          id={`${snapshot.id}-month`}
-          value={snapshot.month}
-          onChange={(v) => {
-            if (!v) return;
-            update({ month: v });
-          }}
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${snapshot.id}-balance`}>残高 (円)</Label>
-        <CommittedInput
-          id={`${snapshot.id}-balance`}
-          type="number"
-          inputMode="numeric"
-          value={snapshot.balance}
-          onCommit={(v) => {
-            const n = Number(v);
-            if (!Number.isFinite(n)) return;
-            update({ balance: n });
-          }}
+        <Label htmlFor={`${snapshot.id}-note`} className="text-xs text-muted-foreground">
+          メモ (任意)
+        </Label>
+        <CommittedTextarea
+          id={`${snapshot.id}-note`}
+          placeholder="補足・根拠・出典など"
+          className="min-h-14 text-sm"
+          value={snapshot.note ?? ""}
+          onCommit={(v) => update({ note: v.trim() === "" ? undefined : v })}
         />
       </div>
     </div>

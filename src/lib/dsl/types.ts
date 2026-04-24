@@ -68,6 +68,7 @@ export type Snapshot = {
   accountId: Ulid;
   month: MonthExpr;
   balance: number;
+  note?: string;
 };
 
 export type FlowRaiseKind = "fixed" | "rate";
@@ -89,6 +90,7 @@ export type FlowSegment = {
   amount: number;
   intervalMonths?: number;
   raise?: FlowRaise;
+  note?: string;
 };
 
 export type Income = {
@@ -126,6 +128,7 @@ export type OneShotEvent = {
   categoryId?: Ulid;
   month: MonthExpr;
   amount: number;
+  note?: string;
 };
 
 export type CategoryKind = "income" | "expense";

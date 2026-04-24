@@ -1,6 +1,7 @@
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { CommittedInput } from "@/components/ui/committed-input";
+import { CommittedTextarea } from "@/components/ui/committed-textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { addMonths } from "@/lib/dsl/month";
@@ -206,6 +207,18 @@ function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: Seg
           </div>
         </div>
       ) : null}
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${idPrefix}-note`} className="text-xs text-muted-foreground">
+          メモ (任意)
+        </Label>
+        <CommittedTextarea
+          id={`${idPrefix}-note`}
+          placeholder="補足・根拠・出典など"
+          className="min-h-14 text-sm"
+          value={segment.note ?? ""}
+          onCommit={(v) => onChange({ note: v.trim() === "" ? undefined : v })}
+        />
+      </div>
     </li>
   );
 }

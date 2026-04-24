@@ -5,6 +5,7 @@ import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommittedInput } from "@/components/ui/committed-input";
+import { CommittedTextarea } from "@/components/ui/committed-textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -188,6 +189,11 @@ export function EventsCard() {
                           ) : null}
                         </span>
                         <span className="font-mono tabular-nums">{formatYen(event.amount)}</span>
+                        {event.note ? (
+                          <span className="line-clamp-1 text-xs text-muted-foreground" title={event.note}>
+                            📝 {event.note}
+                          </span>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => setExpandedId(isExpanded ? null : event.id)}>
@@ -222,58 +228,72 @@ function EventEditor({ event }: { event: OneShotEvent }) {
   };
 
   return (
-    <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[1fr_1fr_1fr_200px_1fr] md:items-end">
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${event.id}-label`}>ラベル</Label>
-        <CommittedInput id={`${event.id}-label`} value={event.label} onCommit={(v) => update({ label: v })} />
+    <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4">
+      <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_200px_1fr] md:items-end">
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${event.id}-label`}>ラベル</Label>
+          <CommittedInput id={`${event.id}-label`} value={event.label} onCommit={(v) => update({ label: v })} />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${event.id}-account`}>口座</Label>
+          <Select value={event.accountId} onValueChange={(v) => update({ accountId: v })}>
+            <SelectTrigger id={`${event.id}-account`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {plan.accounts.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${event.id}-category`}>カテゴリ</Label>
+          <CategorySelect
+            id={`${event.id}-category`}
+            kinds={["income", "expense"]}
+            value={event.categoryId}
+            onChange={(v) => update({ categoryId: v })}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${event.id}-month`}>年月</Label>
+          <MonthExprInput
+            id={`${event.id}-month`}
+            value={event.month}
+            onChange={(v) => {
+              if (!v) return;
+              update({ month: v });
+            }}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${event.id}-amount`}>金額 (円、負で支出)</Label>
+          <CommittedInput
+            id={`${event.id}-amount`}
+            type="number"
+            inputMode="numeric"
+            value={event.amount}
+            onCommit={(v) => {
+              const n = Number(v);
+              if (!Number.isFinite(n)) return;
+              update({ amount: n });
+            }}
+          />
+        </div>
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor={`${event.id}-account`}>口座</Label>
-        <Select value={event.accountId} onValueChange={(v) => update({ accountId: v })}>
-          <SelectTrigger id={`${event.id}-account`} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {plan.accounts.map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {a.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${event.id}-category`}>カテゴリ</Label>
-        <CategorySelect
-          id={`${event.id}-category`}
-          kinds={["income", "expense"]}
-          value={event.categoryId}
-          onChange={(v) => update({ categoryId: v })}
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${event.id}-month`}>年月</Label>
-        <MonthExprInput
-          id={`${event.id}-month`}
-          value={event.month}
-          onChange={(v) => {
-            if (!v) return;
-            update({ month: v });
-          }}
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${event.id}-amount`}>金額 (円、負で支出)</Label>
-        <CommittedInput
-          id={`${event.id}-amount`}
-          type="number"
-          inputMode="numeric"
-          value={event.amount}
-          onCommit={(v) => {
-            const n = Number(v);
-            if (!Number.isFinite(n)) return;
-            update({ amount: n });
-          }}
+        <Label htmlFor={`${event.id}-note`} className="text-xs text-muted-foreground">
+          メモ (任意)
+        </Label>
+        <CommittedTextarea
+          id={`${event.id}-note`}
+          placeholder="補足・根拠・出典など"
+          className="min-h-14 text-sm"
+          value={event.note ?? ""}
+          onCommit={(v) => update({ note: v.trim() === "" ? undefined : v })}
         />
       </div>
     </div>
