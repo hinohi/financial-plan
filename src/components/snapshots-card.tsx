@@ -16,6 +16,40 @@ import type { Account, MonthExpr, Snapshot, YearMonth } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { type PlanAction, usePlan } from "@/state/plan-store";
 
+type SnapshotStatus = { kind: "in-range" } | { kind: "initial" } | { kind: "shadowed-pre" } | { kind: "out-of-range" };
+
+function SnapshotStatusBadge({ status, planStart }: { status: SnapshotStatus; planStart: YearMonth }) {
+  if (status.kind === "in-range") return null;
+  if (status.kind === "initial") {
+    return (
+      <span
+        className="rounded-sm bg-blue-100 px-1 text-[10px] text-blue-800 dark:bg-blue-950 dark:text-blue-200"
+        title={`計画開始月 ${planStart} の初期残高として採用されます`}
+      >
+        初期残高として採用 ({planStart})
+      </span>
+    );
+  }
+  if (status.kind === "shadowed-pre") {
+    return (
+      <span
+        className="rounded-sm bg-amber-100 px-1 text-[10px] text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+        title="同じ口座に計画開始前のより新しい断面があるため、この断面は使われません"
+      >
+        未採用 (より新しい断面あり)
+      </span>
+    );
+  }
+  return (
+    <span
+      className="rounded-sm bg-amber-100 px-1 text-[10px] text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+      title="計画終了月より後のため使われません"
+    >
+      未採用 (計画期間外)
+    </span>
+  );
+}
+
 export function SnapshotsCard() {
   const { plan, dispatch } = usePlan();
   const [accountId, setAccountId] = useState<string>("");
@@ -35,11 +69,34 @@ export function SnapshotsCard() {
     return map;
   }, [plan.persons]);
 
-  const resolvedSnapshotMonth = useMemo(() => {
+  const { resolvedSnapshotMonth, snapshotStatuses, planStartMonth } = useMemo(() => {
     const resolved = resolvePlan(plan);
-    const map = new Map<string, string>();
-    for (const s of resolved.snapshots) map.set(s.id, s.month);
-    return map;
+    const monthMap = new Map<string, string>();
+    for (const s of resolved.snapshots) monthMap.set(s.id, s.month);
+    const planStart = resolved.settings.planStartMonth;
+    const planEnd = resolved.settings.planEndMonth;
+    // 口座ごとに plan 開始より前の最新 snapshot を特定（initial として採用されるもの）
+    const latestPre = new Map<string, { id: string; month: YearMonth }>();
+    for (const s of resolved.snapshots) {
+      if (compareYearMonth(s.month, planStart) < 0) {
+        const cur = latestPre.get(s.accountId);
+        if (!cur || compareYearMonth(s.month, cur.month as YearMonth) > 0) {
+          latestPre.set(s.accountId, { id: s.id, month: s.month });
+        }
+      }
+    }
+    const statuses = new Map<string, SnapshotStatus>();
+    for (const s of resolved.snapshots) {
+      if (compareYearMonth(s.month, planStart) < 0) {
+        const latest = latestPre.get(s.accountId);
+        statuses.set(s.id, latest?.id === s.id ? { kind: "initial" } : { kind: "shadowed-pre" });
+      } else if (compareYearMonth(s.month, planEnd) > 0) {
+        statuses.set(s.id, { kind: "out-of-range" });
+      } else {
+        statuses.set(s.id, { kind: "in-range" });
+      }
+    }
+    return { resolvedSnapshotMonth: monthMap, snapshotStatuses: statuses, planStartMonth: planStart };
   }, [plan]);
 
   const sortedSnapshots = useMemo(() => {
@@ -127,6 +184,7 @@ export function SnapshotsCard() {
             <ul className="divide-y rounded-md border">
               {sortedSnapshots.map((s) => {
                 const isExpanded = expandedId === s.id;
+                const status = snapshotStatuses.get(s.id);
                 return (
                   <li key={s.id} className="grid gap-3 px-4 py-3">
                     <div className="flex items-center justify-between gap-4">
@@ -136,6 +194,11 @@ export function SnapshotsCard() {
                           {isPersonAgeRef(s.month) ? (
                             <span className="ml-1 rounded-sm bg-muted px-1 text-[10px] text-muted-foreground">
                               人物参照
+                            </span>
+                          ) : null}
+                          {status ? (
+                            <span className="ml-1">
+                              <SnapshotStatusBadge status={status} planStart={planStartMonth as YearMonth} />
                             </span>
                           ) : null}
                         </span>

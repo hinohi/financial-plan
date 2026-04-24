@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
 import { NumericInput } from "@/components/ui/numeric-input";
+import { PercentCommittedInput } from "@/components/ui/percent-committed-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
@@ -329,15 +330,24 @@ const SalaryEditor = memo(function SalaryEditor({ salary, accounts, persons, dis
             </Select>
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor={`${salary.id}-raise-value`}>値 {raise.kind === "rate" ? "(例: 0.03 → 3%)" : "(円)"}</Label>
-            <NumericCommittedInput
-              id={`${salary.id}-raise-value`}
-              value={raise.value}
-              onCommit={(v) => {
-                const n = Number(v);
-                if (!Number.isNaN(n)) updateRaise({ value: n });
-              }}
-            />
+            <Label htmlFor={`${salary.id}-raise-value`}>値 {raise.kind === "rate" ? "(%)" : "(円)"}</Label>
+            {raise.kind === "rate" ? (
+              <PercentCommittedInput
+                id={`${salary.id}-raise-value`}
+                step={0.1}
+                value={raise.value}
+                onCommit={(ratio) => updateRaise({ value: ratio })}
+              />
+            ) : (
+              <NumericCommittedInput
+                id={`${salary.id}-raise-value`}
+                value={raise.value}
+                onCommit={(v) => {
+                  const n = Number(v);
+                  if (!Number.isNaN(n)) updateRaise({ value: n });
+                }}
+              />
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor={`${salary.id}-raise-every`}>間隔 (月)</Label>

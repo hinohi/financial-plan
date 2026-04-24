@@ -8,6 +8,7 @@ import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
+import { PercentCommittedInput } from "@/components/ui/percent-committed-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
@@ -194,17 +195,13 @@ function InvestmentEditor({ account }: { account: Account }) {
   return (
     <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[260px_1fr]">
       <div className="grid gap-1.5">
-        <Label htmlFor={`inv-${account.id}-rate`}>年利 (小数: 0.05 = 5%)</Label>
-        <CommittedInput
+        <Label htmlFor={`inv-${account.id}-rate`}>年利 (%)</Label>
+        <PercentCommittedInput
           id={`inv-${account.id}-rate`}
-          type="number"
-          inputMode="decimal"
-          step={0.001}
+          step={0.1}
           value={value}
-          onCommit={(v) => {
-            const n = Number(v);
-            if (!Number.isFinite(n)) return;
-            dispatch({ type: "account/update", id: account.id, patch: { investment: { annualRate: n } } });
+          onCommit={(ratio) => {
+            dispatch({ type: "account/update", id: account.id, patch: { investment: { annualRate: ratio } } });
           }}
         />
       </div>
@@ -219,20 +216,16 @@ function PropertyEditor({ account }: { account: Account }) {
   return (
     <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4 md:grid-cols-[260px_1fr]">
       <div className="grid gap-1.5">
-        <Label htmlFor={`prop-${account.id}-rate`}>減価率 年率 (小数)</Label>
-        <CommittedInput
+        <Label htmlFor={`prop-${account.id}-rate`}>減価率 年率 (%)</Label>
+        <PercentCommittedInput
           id={`prop-${account.id}-rate`}
-          type="number"
-          inputMode="decimal"
-          step={0.001}
+          step={0.1}
           value={value}
-          onCommit={(v) => {
-            const n = Number(v);
-            if (!Number.isFinite(n)) return;
+          onCommit={(ratio) => {
             dispatch({
               type: "account/update",
               id: account.id,
-              patch: { property: { annualDepreciationRate: n } },
+              patch: { property: { annualDepreciationRate: ratio } },
             });
           }}
         />
@@ -278,18 +271,12 @@ function LiabilityEditor({ account }: { account: Account }) {
         </Select>
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor={`li-${account.id}-rate`}>年利 (小数)</Label>
-        <CommittedInput
+        <Label htmlFor={`li-${account.id}-rate`}>年利 (%)</Label>
+        <PercentCommittedInput
           id={`li-${account.id}-rate`}
-          type="number"
-          inputMode="decimal"
-          step={0.001}
+          step={0.1}
           value={params.annualRate}
-          onCommit={(v) => {
-            const n = Number(v);
-            if (!Number.isFinite(n)) return;
-            update({ annualRate: n });
-          }}
+          onCommit={(ratio) => update({ annualRate: ratio })}
         />
       </div>
       <div className="grid gap-1.5">

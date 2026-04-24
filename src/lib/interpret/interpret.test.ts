@@ -44,14 +44,68 @@ describe("interpret", () => {
     ]);
   });
 
-  test("計画期間外の snapshot は出力されない", () => {
+  test("計画期間より後の snapshot は出力されない", () => {
     const plan = basePlan({
-      snapshots: [
-        { id: "s-before", accountId: "a1", month: "2025-12", balance: 500 },
-        { id: "s-after", accountId: "a1", month: "2027-01", balance: 500 },
-      ],
+      snapshots: [{ id: "s-after", accountId: "a1", month: "2027-01", balance: 500 }],
     });
     expect(interpret(plan)).toEqual([]);
+  });
+
+  test("計画期間より前の snapshot は planStart の初期残高として採用される", () => {
+    const plan = basePlan({
+      snapshots: [{ id: "s-before", accountId: "a1", month: "2025-12", balance: 500 }],
+    });
+    expect(interpret(plan)).toEqual([
+      { month: "2026-01", accountId: "a1", sourceId: "s-before", sourceKind: "snapshot", amount: 500 },
+    ]);
+  });
+
+  test("計画期間より前の snapshot が複数あっても口座ごとに最新のみ採用される", () => {
+    const plan = basePlan({
+      accounts: [
+        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a2", label: "inv", kind: "cash" },
+      ],
+      snapshots: [
+        { id: "s-old", accountId: "a1", month: "2025-01", balance: 100 },
+        { id: "s-new", accountId: "a1", month: "2025-12", balance: 500 },
+        { id: "s-other", accountId: "a2", month: "2025-06", balance: 200 },
+      ],
+    });
+    const entries = interpret(plan);
+    // 口座 a1 は最新 (2025-12) のみ、a2 は単独の 2025-06 を planStart に注入
+    expect(entries).toHaveLength(2);
+    expect(entries.find((e) => e.accountId === "a1")).toEqual({
+      month: "2026-01",
+      accountId: "a1",
+      sourceId: "s-new",
+      sourceKind: "snapshot",
+      amount: 500,
+    });
+    expect(entries.find((e) => e.accountId === "a2")).toEqual({
+      month: "2026-01",
+      accountId: "a2",
+      sourceId: "s-other",
+      sourceKind: "snapshot",
+      amount: 200,
+    });
+  });
+
+  test("plan 範囲内に同月の snapshot があればそちらが優先される", () => {
+    const plan = basePlan({
+      snapshots: [
+        { id: "s-pre", accountId: "a1", month: "2025-12", balance: 100 },
+        { id: "s-in", accountId: "a1", month: "2026-01", balance: 999 },
+      ],
+    });
+    const entries = interpret(plan);
+    // 2026-01 月の最終 balance (groupEntries で最後に勝つ) は 999
+    // interpret が返すのは entry 列。両方含まれるが、残高合算では 999 が採用される
+    const jan = entries.filter((e) => e.month === "2026-01");
+    expect(jan.length).toBeGreaterThanOrEqual(1);
+    // 最後に push された in-range snapshot が後方に来る
+    expect(jan.at(-1)?.sourceId).toBe("s-in");
+    expect(jan.at(-1)?.amount).toBe(999);
   });
 
   test("income segment を月ごとに展開する", () => {

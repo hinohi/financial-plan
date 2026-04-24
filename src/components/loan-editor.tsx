@@ -1,8 +1,8 @@
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
-import { CommittedInput } from "@/components/ui/committed-input";
 import { Label } from "@/components/ui/label";
 import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
+import { PercentCommittedInput } from "@/components/ui/percent-committed-input";
 import { addMonths } from "@/lib/dsl/month";
 import type { LoanRateSegment, LoanSpec, MonthExpr } from "@/lib/dsl/types";
 
@@ -90,18 +90,12 @@ export function LoanEditor({ idPrefix, loan, planStart, onChange }: LoanEditorPr
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor={`${idPrefix}-rate-${index}-rate`}>年利 (小数: 0.01 = 1%)</Label>
-                <CommittedInput
+                <Label htmlFor={`${idPrefix}-rate-${index}-rate`}>年利 (%)</Label>
+                <PercentCommittedInput
                   id={`${idPrefix}-rate-${index}-rate`}
-                  type="number"
-                  inputMode="decimal"
-                  step={0.001}
+                  step={0.1}
                   value={seg.annualRate}
-                  onCommit={(v) => {
-                    const n = Number(v);
-                    if (!Number.isFinite(n)) return;
-                    updateRateSegment(index, { annualRate: n });
-                  }}
+                  onCommit={(ratio) => updateRateSegment(index, { annualRate: ratio })}
                 />
               </div>
               {loan.rateSegments.length > 1 ? (

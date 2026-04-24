@@ -14,6 +14,7 @@ import {
   type ResolvedLiabilityParams,
   type ResolvedLoanSpec,
   type ResolvedPlan,
+  type ResolvedSnapshot,
   resolvePlan,
 } from "@/lib/dsl/resolve";
 import type { Account, MonthlyEntry, Person, Plan, Ulid, YearMonth } from "@/lib/dsl/types";
@@ -382,6 +383,26 @@ function emitGrossSalaryEntries(
 function buildStaticEntriesByMonth(plan: ResolvedPlan): Map<YearMonth, MonthlyEntry[]> {
   const { planStartMonth: start, planEndMonth: end } = plan.settings;
   const tmp: MonthlyEntry[] = [];
+
+  // plan 開始より前の snapshot は「開始時点の初期残高」として planStart に平行移動する。
+  // 口座ごとに最新のもののみ採用。plan 範囲内に同月の snapshot があれば後続の push で上書きされる。
+  const preStartLatest = new Map<Ulid, ResolvedSnapshot>();
+  for (const snapshot of plan.snapshots) {
+    if (compareYearMonth(snapshot.month, start) >= 0) continue;
+    const cur = preStartLatest.get(snapshot.accountId);
+    if (!cur || compareYearMonth(snapshot.month, cur.month) > 0) {
+      preStartLatest.set(snapshot.accountId, snapshot);
+    }
+  }
+  for (const snapshot of preStartLatest.values()) {
+    tmp.push({
+      month: start,
+      accountId: snapshot.accountId,
+      sourceId: snapshot.id,
+      sourceKind: "snapshot",
+      amount: Math.trunc(snapshot.balance),
+    });
+  }
 
   for (const snapshot of plan.snapshots) {
     if (!withinPlan(snapshot.month, start, end)) continue;
