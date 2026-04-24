@@ -144,6 +144,192 @@ describe("hydratePlan", () => {
     };
     expect(hydratePlan(raw)?.persons).toEqual([{ id: "p1", label: "ok", birthMonth: "1990-05" }]);
   });
+
+  test("不正な birthMonth を持つ person は除外される", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      persons: [
+        { id: "p1", label: "ok", birthMonth: "1990-05" },
+        { id: "p2", label: "bad", birthMonth: "1990-13" },
+        { id: "p3", label: "bad", birthMonth: "not-a-date" },
+      ],
+    };
+    expect(hydratePlan(raw)?.persons).toHaveLength(1);
+  });
+
+  test("settings.yearStartMonth が範囲外なら null", () => {
+    expect(
+      hydratePlan({
+        settings: { yearStartMonth: 13, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      }),
+    ).toBeNull();
+    expect(
+      hydratePlan({
+        settings: { yearStartMonth: 0, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      }),
+    ).toBeNull();
+    expect(
+      hydratePlan({
+        settings: { yearStartMonth: 1.5, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      }),
+    ).toBeNull();
+  });
+
+  test("settings.planStartMonth / planEndMonth が不正な MonthExpr なら null", () => {
+    expect(
+      hydratePlan({
+        settings: { yearStartMonth: 1, planStartMonth: "invalid", planEndMonth: "2026-12" },
+      }),
+    ).toBeNull();
+    expect(
+      hydratePlan({
+        settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: 42 },
+      }),
+    ).toBeNull();
+  });
+
+  test("account.kind が不正な要素は除外される", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      accounts: [
+        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a2", label: "old", kind: "real-estate" },
+        { id: "a3", label: "broken", kind: null },
+        null,
+      ],
+    };
+    expect(hydratePlan(raw)?.accounts.map((a) => a.id)).toEqual(["a1"]);
+  });
+
+  test("investment account の annualRate が不正なら設定は落とすが account 自体は残す", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      accounts: [
+        { id: "a1", label: "inv", kind: "investment", investment: { annualRate: 0.03 } },
+        { id: "a2", label: "inv-bad", kind: "investment", investment: { annualRate: "bad" } },
+        { id: "a3", label: "inv-no-params", kind: "investment" },
+      ],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.accounts[0]?.investment).toEqual({ annualRate: 0.03 });
+    expect(plan?.accounts[1]?.investment).toBeUndefined();
+    expect(plan?.accounts[2]?.investment).toBeUndefined();
+  });
+
+  test("snapshot.balance が非数値なら除外、note は保持", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      snapshots: [
+        { id: "s1", accountId: "a1", month: "2026-03", balance: 100, note: "初期" },
+        { id: "s2", accountId: "a1", month: "2026-04", balance: "bad" },
+        { id: "s3", accountId: "a1", month: "bad", balance: 100 },
+      ],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.snapshots).toHaveLength(1);
+    expect(plan?.snapshots[0]?.note).toBe("初期");
+  });
+
+  test("flow segment の startMonth / amount が必須、raise の不正値は落とす", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      incomes: [
+        {
+          id: "i1",
+          label: "ok",
+          accountId: "a1",
+          segments: [
+            { startMonth: "2026-01", amount: 100, raise: { kind: "rate", value: 0.02, everyMonths: 12 } },
+            { startMonth: "2026-02", amount: 200, raise: { kind: "bogus", value: 0 } },
+            { amount: 300 }, // startMonth 欠損
+          ],
+        },
+      ],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.incomes[0]?.segments).toHaveLength(2);
+    expect(plan?.incomes[0]?.segments[0]?.raise).toEqual({ kind: "rate", value: 0.02, everyMonths: 12 });
+    expect(plan?.incomes[0]?.segments[1]?.raise).toBeUndefined();
+  });
+
+  test("loan の rateSegments は部分的に不正でも残りを拾う", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      expenses: [
+        {
+          id: "e1",
+          label: "home",
+          accountId: "a1",
+          segments: [{ startMonth: "2026-01", amount: 100 }],
+          loan: {
+            principal: 10000,
+            rateSegments: [
+              { startMonth: "2026-01", annualRate: 0.02, endMonth: "2030-12" },
+              { startMonth: "bad", annualRate: 0.015 },
+              { startMonth: "2031-01", annualRate: "nope" },
+            ],
+          },
+        },
+      ],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.expenses[0]?.loan?.rateSegments).toHaveLength(1);
+  });
+
+  test("grossSalary は必須フィールド欠損で除外", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      grossSalaries: [
+        { id: "g1", label: "ok", accountId: "a1", personId: "p1", annualAmount: 5_000_000, startMonth: "2026-04" },
+        { id: "g2", label: "no-person", accountId: "a1", annualAmount: 100, startMonth: "2026-04" },
+        { id: "g3", label: "bad-amount", accountId: "a1", personId: "p1", annualAmount: "oops", startMonth: "2026-04" },
+      ],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.grossSalaries.map((g) => g.id)).toEqual(["g1"]);
+  });
+
+  test("transfer は from/to 文字列必須、minFromBalance は数値のみ採用", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      transfers: [
+        {
+          id: "t1",
+          label: "ok",
+          fromAccountId: "a1",
+          toAccountId: "a2",
+          segments: [{ startMonth: "2026-01", amount: 100 }],
+          minFromBalance: 1000,
+        },
+        {
+          id: "t2",
+          label: "bad-min",
+          fromAccountId: "a1",
+          toAccountId: "a2",
+          segments: [],
+          minFromBalance: "large",
+        },
+        {
+          id: "t3",
+          label: "no-to",
+          fromAccountId: "a1",
+          segments: [],
+        },
+      ],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.transfers).toHaveLength(2);
+    expect(plan?.transfers[0]?.minFromBalance).toBe(1000);
+    expect(plan?.transfers[1]?.minFromBalance).toBeUndefined();
+  });
 });
 
 describe("hydrateRegistry", () => {
