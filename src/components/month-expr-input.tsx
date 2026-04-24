@@ -169,7 +169,7 @@ function PersonRefRow({
 }: PersonRefRowProps) {
   return (
     <div className="grid gap-1">
-      <div className="grid grid-cols-[1fr_70px_70px] gap-1">
+      <div className="grid grid-cols-[1fr_70px_84px] gap-1">
         <Select value={personId} onValueChange={onPersonChange}>
           <SelectTrigger id={id} className="h-9 w-full">
             <SelectValue placeholder="人物" />
