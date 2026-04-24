@@ -133,6 +133,13 @@ type AccountEditorProps = {
 };
 
 const AccountEditor = memo(function AccountEditor({ account, dispatch }: AccountEditorProps) {
+  const handleKindChange = (next: AccountKind) => {
+    if (next === account.kind) return;
+    // investment → cash で残っていた investment パラメータは明示的にクリアする
+    const patch: Partial<Omit<Account, "id">> =
+      next === "investment" ? { kind: next } : { kind: next, investment: undefined };
+    dispatch({ type: "account/update", id: account.id, patch });
+  };
   return (
     <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4">
       <div className="grid gap-3 md:grid-cols-[1fr_200px] md:items-end">
@@ -145,8 +152,19 @@ const AccountEditor = memo(function AccountEditor({ account, dispatch }: Account
           />
         </div>
         <div className="grid gap-1.5">
-          <Label>種別</Label>
-          <span className="text-sm text-muted-foreground">{ACCOUNT_KIND_LABEL[account.kind]}</span>
+          <Label htmlFor={`acc-${account.id}-kind`}>種別</Label>
+          <Select value={account.kind} onValueChange={(v) => handleKindChange(v as AccountKind)}>
+            <SelectTrigger id={`acc-${account.id}-kind`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ACCOUNT_KINDS.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {ACCOUNT_KIND_LABEL[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <AccountParamsEditor account={account} />
