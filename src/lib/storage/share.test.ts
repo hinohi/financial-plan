@@ -96,4 +96,24 @@ describe("decode error cases", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("大きすぎ");
   });
+
+  test("展開後サイズが上限を超えると decompression bomb として弾かれる", async () => {
+    // MAX_DECODED_BYTES(2MB) を大きく超える 3MB のゼロ埋めを deflate-raw で圧縮する。
+    // deflate の辞書圧縮で圧縮後は数KB になるため、上限の事前判定が無ければ 3MB 展開する入力。
+    const bigInput = new Uint8Array(3_000_000);
+    const body = new Response(bigInput).body;
+    if (!body) throw new Error("Response.body が利用できません");
+    const compressed = await new Response(body.pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer();
+    const bytes = new Uint8Array(compressed);
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    const b64url = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const code = `v1.${b64url}`;
+    // プレフィックス込みで MAX_ENCODED_CHARS (500_000) 以内に収まっていることを確認。
+    expect(code.length).toBeLessThan(500_000);
+    const result = await decodeSharedPlan(code);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("大きすぎ");
+  });
 });
