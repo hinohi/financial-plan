@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { aggregate, aggregateFlow, SYSTEM_CATEGORY_LABEL } from "@/lib/aggregate";
+import { aggregate, aggregateFlow, isSystemCategoryKey, SYSTEM_CATEGORY_LABEL } from "@/lib/aggregate";
 import { interpret } from "@/lib/interpret";
 import samplePlanData from "@/lib/sample-plan.json";
 import { hydratePlan } from "@/lib/storage";
@@ -18,7 +18,8 @@ function labelAccount(id: string): string {
 }
 
 function labelCategory(key: string): string {
-  return SYSTEM_CATEGORY_LABEL[key] ?? categoryLabelById[key] ?? key;
+  if (isSystemCategoryKey(key)) return SYSTEM_CATEGORY_LABEL[key];
+  return categoryLabelById[key] ?? key;
 }
 
 describe("サンプルプラン 年集約スナップショット", () => {

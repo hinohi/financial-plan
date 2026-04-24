@@ -17,6 +17,7 @@ import {
   type AggregatePeriod,
   aggregateFlow,
   type CategoryGroup,
+  isSystemCategoryKey,
   SYSTEM_CATEGORY_LABEL,
   UNCATEGORIZED_KEY,
 } from "@/lib/aggregate";
@@ -73,7 +74,7 @@ export function FlowChart({ kind }: FlowChartProps) {
     viewData.categoryOrder.forEach((key, idx) => {
       if (key === UNCATEGORIZED_KEY) {
         config[key] = { label: "未分類", color: UNCATEGORIZED_COLOR };
-      } else if (SYSTEM_CATEGORY_LABEL[key]) {
+      } else if (isSystemCategoryKey(key)) {
         config[key] = {
           label: SYSTEM_CATEGORY_LABEL[key],
           color: CATEGORY_PALETTE[idx % CATEGORY_PALETTE.length] ?? UNCATEGORIZED_COLOR,

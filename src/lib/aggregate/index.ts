@@ -16,16 +16,25 @@ export type ViewData = {
   points: BalancePoint[];
 };
 
-export const UNCATEGORIZED_KEY = "__uncategorized__";
-export const SYSTEM_INTEREST_KEY = "__interest__";
-export const SYSTEM_SALARY_GROSS_KEY = "__salary_gross__";
-export const SYSTEM_SOCIAL_INSURANCE_KEY = "__social_insurance__";
-export const SYSTEM_INCOME_TAX_KEY = "__income_tax__";
-export const SYSTEM_RESIDENT_TAX_KEY = "__resident_tax__";
+export const UNCATEGORIZED_KEY = "__uncategorized__" as const;
+export const SYSTEM_INTEREST_KEY = "__interest__" as const;
+export const SYSTEM_SALARY_GROSS_KEY = "__salary_gross__" as const;
+export const SYSTEM_SOCIAL_INSURANCE_KEY = "__social_insurance__" as const;
+export const SYSTEM_INCOME_TAX_KEY = "__income_tax__" as const;
+export const SYSTEM_RESIDENT_TAX_KEY = "__resident_tax__" as const;
 /** top 集計時に社会保険料・所得税・住民税をまとめる大項目 */
-export const SYSTEM_TAX_KEY = "__tax__";
+export const SYSTEM_TAX_KEY = "__tax__" as const;
 
-export const SYSTEM_CATEGORY_LABEL: Record<string, string> = {
+export type SystemCategoryKey =
+  | typeof UNCATEGORIZED_KEY
+  | typeof SYSTEM_INTEREST_KEY
+  | typeof SYSTEM_SALARY_GROSS_KEY
+  | typeof SYSTEM_SOCIAL_INSURANCE_KEY
+  | typeof SYSTEM_INCOME_TAX_KEY
+  | typeof SYSTEM_RESIDENT_TAX_KEY
+  | typeof SYSTEM_TAX_KEY;
+
+export const SYSTEM_CATEGORY_LABEL: Record<SystemCategoryKey, string> = {
   [UNCATEGORIZED_KEY]: "未分類",
   [SYSTEM_INTEREST_KEY]: "運用益",
   [SYSTEM_SALARY_GROSS_KEY]: "給与(額面)",
@@ -34,6 +43,10 @@ export const SYSTEM_CATEGORY_LABEL: Record<string, string> = {
   [SYSTEM_RESIDENT_TAX_KEY]: "住民税",
   [SYSTEM_TAX_KEY]: "税金",
 };
+
+export function isSystemCategoryKey(key: string): key is SystemCategoryKey {
+  return Object.hasOwn(SYSTEM_CATEGORY_LABEL, key);
+}
 
 export type CategoryGroup = "leaf" | "top";
 
