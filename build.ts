@@ -137,6 +137,15 @@ const result = await Bun.build({
   ...cliConfig,
 });
 
+const staticAssets = ["og-image.png"];
+for (const name of staticAssets) {
+  const src = path.resolve("src", name);
+  if (!existsSync(src)) continue;
+  const dst = path.resolve(outdir, name);
+  await Bun.write(dst, Bun.file(src));
+  console.log(`📎 Copied static asset: ${name}`);
+}
+
 const end = performance.now();
 
 const outputTable = result.outputs.map((output) => ({
