@@ -90,10 +90,10 @@ describe("planReducer", () => {
     const state = seed();
     const next = planReducer(state, {
       type: "account/add",
-      account: { id: "a3", label: "住宅", kind: "property" },
+      account: { id: "a3", label: "預金", kind: "cash" },
     });
     expect(next.accounts).toHaveLength(3);
-    expect(next.accounts[2]).toEqual({ id: "a3", label: "住宅", kind: "property" });
+    expect(next.accounts[2]).toEqual({ id: "a3", label: "預金", kind: "cash" });
   });
 
   test("account/update は該当 id のみ更新する", () => {
@@ -354,35 +354,6 @@ describe("planReducer", () => {
     expect(next.incomes.find((i) => i.id === "i1")).toBeDefined();
     expect(next.expenses.find((e) => e.id === "e1")).toBeDefined();
     expect(next.transfers.find((t) => t.id === "t1")).toBeDefined();
-  });
-
-  test("person/remove は liability.startMonth が人物を参照する account を削除し、紐づく snapshot も落とす", () => {
-    const withPerson = planReducer(seed(), {
-      type: "person/add",
-      person: { id: "p1", label: "自分", birthMonth: "1990-01" },
-    });
-    const wired: Plan = {
-      ...withPerson,
-      accounts: [
-        ...withPerson.accounts,
-        {
-          id: "loan",
-          label: "ローン",
-          kind: "liability",
-          liability: {
-            annualRate: 0.01,
-            scheduleKind: "equal-payment",
-            principal: 1000,
-            termMonths: 120,
-            startMonth: { kind: "person-age", personId: "p1", age: 40, month: 4 },
-          },
-        },
-      ],
-      snapshots: [...withPerson.snapshots, { id: "s-loan", accountId: "loan", month: "2030-04", balance: 1000 }],
-    };
-    const next = planReducer(wired, { type: "person/remove", id: "p1" });
-    expect(next.accounts.find((a) => a.id === "loan")).toBeUndefined();
-    expect(next.snapshots.find((s) => s.id === "s-loan")).toBeUndefined();
   });
 
   test("person/remove は settings の planStartMonth/planEndMonth が参照していたら解決済み値にスナップショット", () => {

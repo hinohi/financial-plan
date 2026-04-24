@@ -4,10 +4,8 @@ import { interpret } from "@/lib/interpret";
 import {
   aggregate,
   aggregateFlow,
-  SYSTEM_DEPRECIATION_KEY,
   SYSTEM_INCOME_TAX_KEY,
   SYSTEM_INTEREST_KEY,
-  SYSTEM_LOAN_INTEREST_KEY,
   SYSTEM_RESIDENT_TAX_KEY,
   SYSTEM_SOCIAL_INSURANCE_KEY,
   SYSTEM_TAX_KEY,
@@ -375,39 +373,6 @@ describe("aggregateFlow", () => {
     const view = aggregateFlow(plan, interpret(plan), { kind: "income", period: "monthly", group: "leaf" });
     expect(view.categoryOrder).toContain(SYSTEM_INTEREST_KEY);
     expect(view.points.some((p) => (p.byCategory[SYSTEM_INTEREST_KEY] ?? 0) > 0)).toBe(true);
-  });
-
-  test("不動産の減価と借入利息は expense に計上される", () => {
-    const plan = basePlan({
-      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
-      accounts: [
-        { id: "cash", label: "現金", kind: "cash" },
-        {
-          id: "prop",
-          label: "家",
-          kind: "property",
-          property: { annualDepreciationRate: 0.05 },
-        },
-        {
-          id: "loan",
-          label: "ローン",
-          kind: "liability",
-          liability: {
-            annualRate: 0.024,
-            scheduleKind: "equal-principal",
-            principal: 1_200_000,
-            termMonths: 12,
-            startMonth: "2026-01",
-            paymentAccountId: "cash",
-          },
-        },
-      ],
-      snapshots: [{ id: "s1", accountId: "prop", month: "2026-01", balance: 10_000_000 }],
-    });
-    const view = aggregateFlow(plan, interpret(plan), { kind: "expense", period: "monthly", group: "leaf" });
-    expect(view.categoryOrder).toContain(SYSTEM_DEPRECIATION_KEY);
-    expect(view.categoryOrder).toContain(SYSTEM_LOAN_INTEREST_KEY);
-    expect(view.points[0]?.byCategory[SYSTEM_LOAN_INTEREST_KEY]).toBeGreaterThan(0);
   });
 
   test("kind 不一致の categoryId は未分類扱い", () => {

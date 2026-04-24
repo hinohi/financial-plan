@@ -11,7 +11,6 @@ import {
   type ResolvedExpense,
   type ResolvedFlowSegment,
   type ResolvedGrossSalary,
-  type ResolvedLiabilityParams,
   type ResolvedLoanSpec,
   type ResolvedPlan,
   type ResolvedSnapshot,
@@ -95,39 +94,6 @@ function emitTransferSegment(
 export function monthlyCompoundRate(annualRate: number): number {
   if (!Number.isFinite(annualRate)) return 0;
   return (1 + annualRate) ** (1 / 12) - 1;
-}
-
-type LiabilityPayment = { interest: number; principal: number };
-
-export function computeLiabilitySchedule(params: ResolvedLiabilityParams): Map<YearMonth, LiabilityPayment> {
-  const { annualRate, scheduleKind, principal, termMonths, startMonth } = params;
-  const result = new Map<YearMonth, LiabilityPayment>();
-  if (principal <= 0 || termMonths <= 0) return result;
-  const r = annualRate / 12;
-
-  if (scheduleKind === "equal-payment") {
-    const payment =
-      r === 0 ? principal / termMonths : (principal * r * (1 + r) ** termMonths) / ((1 + r) ** termMonths - 1);
-    let remaining = principal;
-    for (let i = 0; i < termMonths; i++) {
-      const month = addMonths(startMonth, i);
-      const interest = remaining * r;
-      const principalAmt = Math.min(remaining, payment - interest);
-      remaining -= principalAmt;
-      result.set(month, { interest, principal: principalAmt });
-    }
-  } else {
-    const principalMonthly = principal / termMonths;
-    let remaining = principal;
-    for (let i = 0; i < termMonths; i++) {
-      const month = addMonths(startMonth, i);
-      const interest = remaining * r;
-      const principalAmt = Math.min(remaining, principalMonthly);
-      remaining -= principalAmt;
-      result.set(month, { interest, principal: principalAmt });
-    }
-  }
-  return result;
 }
 
 export function loanMonthlyPayment(balance: number, monthlyRate: number, remainingMonths: number): number {
@@ -464,7 +430,6 @@ function computeDynamicEntriesForMonth(
   month: YearMonth,
   plan: ResolvedPlan,
   balances: Record<Ulid, number>,
-  liabilitySchedules: Map<Ulid, Map<YearMonth, LiabilityPayment>>,
 ): MonthlyEntry[] {
   const { planStartMonth: start, planEndMonth: end } = plan.settings;
   const out: MonthlyEntry[] = [];
@@ -481,58 +446,6 @@ function computeDynamicEntriesForMonth(
           sourceId: account.id,
           sourceKind: "interest",
           amount,
-        });
-      }
-    } else if (account.kind === "property" && account.property && account.property.annualDepreciationRate !== 0) {
-      const base = balances[account.id] ?? 0;
-      const rate = monthlyCompoundRate(-account.property.annualDepreciationRate);
-      const amount = Math.trunc(base * rate);
-      if (Number.isFinite(amount) && amount !== 0) {
-        out.push({
-          month,
-          accountId: account.id,
-          sourceId: account.id,
-          sourceKind: "depreciation",
-          amount,
-        });
-      }
-    }
-  }
-
-  for (const account of plan.accounts) {
-    if (account.kind !== "liability" || !account.liability) continue;
-    if (!withinPlan(month, start, end)) continue;
-    const schedule = liabilitySchedules.get(account.id);
-    if (!schedule) continue;
-    const payment = schedule.get(month);
-    if (!payment) continue;
-    const paymentAccountId = account.liability.paymentAccountId;
-    if (paymentAccountId) {
-      const interest = Math.trunc(payment.interest);
-      const principalTrunc = Math.trunc(payment.principal);
-      if (interest !== 0) {
-        out.push({
-          month,
-          accountId: paymentAccountId,
-          sourceId: account.id,
-          sourceKind: "loan_interest",
-          amount: -interest,
-        });
-      }
-      if (principalTrunc !== 0) {
-        out.push({
-          month,
-          accountId: paymentAccountId,
-          sourceId: account.id,
-          sourceKind: "loan_principal",
-          amount: -principalTrunc,
-        });
-        out.push({
-          month,
-          accountId: account.id,
-          sourceId: account.id,
-          sourceKind: "loan_principal",
-          amount: principalTrunc,
         });
       }
     }
@@ -587,15 +500,6 @@ function segmentActiveOnMonth(
   return true;
 }
 
-function buildLiabilitySchedules(plan: ResolvedPlan): Map<Ulid, Map<YearMonth, LiabilityPayment>> {
-  const map = new Map<Ulid, Map<YearMonth, LiabilityPayment>>();
-  for (const account of plan.accounts) {
-    if (account.kind !== "liability" || !account.liability) continue;
-    map.set(account.id, computeLiabilitySchedule(account.liability));
-  }
-  return map;
-}
-
 function applyMonthEntries(balances: Record<Ulid, number>, entries: MonthlyEntry[]): void {
   for (const e of entries) {
     if (e.sourceKind === "snapshot") {
@@ -610,14 +514,13 @@ export function interpret(plan: Plan): MonthlyEntry[] {
   const resolved = resolvePlan(plan);
   const { planStartMonth: start, planEndMonth: end } = resolved.settings;
   const staticByMonth = buildStaticEntriesByMonth(resolved);
-  const liabilitySchedules = buildLiabilitySchedules(resolved);
 
   const balances: Record<Ulid, number> = {};
   for (const account of resolved.accounts) balances[account.id] = 0;
 
   const entries: MonthlyEntry[] = [];
   for (const month of iterateMonths(start, end)) {
-    const dynamic = computeDynamicEntriesForMonth(month, resolved, balances, liabilitySchedules);
+    const dynamic = computeDynamicEntriesForMonth(month, resolved, balances);
     const staticEntries = staticByMonth.get(month) ?? [];
     const monthEntries = [...staticEntries, ...dynamic];
     for (const e of monthEntries) entries.push(e);

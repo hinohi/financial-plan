@@ -18,8 +18,6 @@ export type ViewData = {
 
 export const UNCATEGORIZED_KEY = "__uncategorized__";
 export const SYSTEM_INTEREST_KEY = "__interest__";
-export const SYSTEM_DEPRECIATION_KEY = "__depreciation__";
-export const SYSTEM_LOAN_INTEREST_KEY = "__loan_interest__";
 export const SYSTEM_SALARY_GROSS_KEY = "__salary_gross__";
 export const SYSTEM_SOCIAL_INSURANCE_KEY = "__social_insurance__";
 export const SYSTEM_INCOME_TAX_KEY = "__income_tax__";
@@ -30,8 +28,6 @@ export const SYSTEM_TAX_KEY = "__tax__";
 export const SYSTEM_CATEGORY_LABEL: Record<string, string> = {
   [UNCATEGORIZED_KEY]: "未分類",
   [SYSTEM_INTEREST_KEY]: "運用益",
-  [SYSTEM_DEPRECIATION_KEY]: "減価",
-  [SYSTEM_LOAN_INTEREST_KEY]: "支払利息",
   [SYSTEM_SALARY_GROSS_KEY]: "給与(額面)",
   [SYSTEM_SOCIAL_INSURANCE_KEY]: "社会保険料",
   [SYSTEM_INCOME_TAX_KEY]: "所得税",
@@ -152,8 +148,6 @@ function resolveCategoryKey(
   group: CategoryGroup,
 ): string | null {
   if (entry.sourceKind === "interest") return SYSTEM_INTEREST_KEY;
-  if (entry.sourceKind === "depreciation") return SYSTEM_DEPRECIATION_KEY;
-  if (entry.sourceKind === "loan_interest") return SYSTEM_LOAN_INTEREST_KEY;
   if (entry.sourceKind === "salary_gross") return SYSTEM_SALARY_GROSS_KEY;
   if (
     entry.sourceKind === "social_insurance" ||
@@ -185,8 +179,6 @@ function matchesKind(entry: MonthlyEntry, kind: CategoryKind): boolean {
   if (kind === "expense") {
     return (
       entry.sourceKind === "expense" ||
-      entry.sourceKind === "depreciation" ||
-      entry.sourceKind === "loan_interest" ||
       entry.sourceKind === "social_insurance" ||
       entry.sourceKind === "income_tax" ||
       entry.sourceKind === "resident_tax" ||
@@ -244,8 +236,6 @@ export function aggregateFlow(
     SYSTEM_SOCIAL_INSURANCE_KEY,
     SYSTEM_INCOME_TAX_KEY,
     SYSTEM_RESIDENT_TAX_KEY,
-    SYSTEM_DEPRECIATION_KEY,
-    SYSTEM_LOAN_INTEREST_KEY,
   ];
   for (const key of systemKeysOrder) {
     if (usedKeys.has(key)) categoryOrder.push(key);

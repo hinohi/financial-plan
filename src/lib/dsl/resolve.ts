@@ -5,7 +5,6 @@ import type {
   FlowSegment,
   GrossSalary,
   Income,
-  LiabilityParams,
   LoanRateSegment,
   LoanSpec,
   MonthExpr,
@@ -40,8 +39,7 @@ export type ResolvedGrossSalary = Omit<GrossSalary, "startMonth" | "endMonth"> &
   startMonth: YearMonth;
   endMonth?: YearMonth;
 };
-export type ResolvedLiabilityParams = Omit<LiabilityParams, "startMonth"> & { startMonth: YearMonth };
-export type ResolvedAccount = Omit<Account, "liability"> & { liability?: ResolvedLiabilityParams };
+export type ResolvedAccount = Account;
 export type ResolvedPlanSettings = Omit<PlanSettings, "planStartMonth" | "planEndMonth"> & {
   planStartMonth: YearMonth;
   planEndMonth: YearMonth;
@@ -124,16 +122,7 @@ export function resolvePlan(plan: Plan): ResolvedPlan {
   const planStartMonth = tryResolve(settings.planStartMonth, persons, yearStart) ?? FALLBACK_START;
   const planEndMonth = tryResolve(settings.planEndMonth, persons, yearStart) ?? FALLBACK_END;
 
-  const accounts: ResolvedAccount[] = [];
-  for (const a of plan.accounts) {
-    if (a.liability) {
-      const start = tryResolve(a.liability.startMonth, persons, yearStart);
-      if (start === null) continue;
-      accounts.push({ ...a, liability: { ...a.liability, startMonth: start } });
-    } else {
-      accounts.push({ ...a, liability: undefined });
-    }
-  }
+  const accounts: ResolvedAccount[] = plan.accounts.map((a) => ({ ...a }));
 
   const snapshots: ResolvedSnapshot[] = [];
   for (const s of plan.snapshots) {

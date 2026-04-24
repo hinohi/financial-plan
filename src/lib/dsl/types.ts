@@ -21,39 +21,17 @@ export type PersonAgeRef = {
 
 export type MonthExpr = YearMonth | PersonAgeRef;
 
-export type AccountKind = "cash" | "investment" | "property" | "liability";
+export type AccountKind = "cash" | "investment";
 
-export const ACCOUNT_KINDS: AccountKind[] = ["cash", "investment", "property", "liability"];
+export const ACCOUNT_KINDS: AccountKind[] = ["cash", "investment"];
 
 export const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
   cash: "現金",
   investment: "投資",
-  property: "不動産",
-  liability: "負債",
 };
 
 export type InvestmentParams = {
   annualRate: number;
-};
-
-export type LiabilityScheduleKind = "equal-payment" | "equal-principal";
-
-export const LIABILITY_SCHEDULE_KIND_LABEL: Record<LiabilityScheduleKind, string> = {
-  "equal-payment": "元利均等",
-  "equal-principal": "元金均等",
-};
-
-export type LiabilityParams = {
-  annualRate: number;
-  scheduleKind: LiabilityScheduleKind;
-  principal: number;
-  termMonths: number;
-  startMonth: MonthExpr;
-  paymentAccountId?: Ulid;
-};
-
-export type PropertyParams = {
-  annualDepreciationRate: number;
 };
 
 export type Account = {
@@ -61,8 +39,6 @@ export type Account = {
   label: string;
   kind: AccountKind;
   investment?: InvestmentParams;
-  liability?: LiabilityParams;
-  property?: PropertyParams;
 };
 
 export type Snapshot = {
@@ -205,9 +181,6 @@ export type MonthlyEntrySourceKind =
   | "transfer"
   | "snapshot"
   | "interest"
-  | "depreciation"
-  | "loan_interest"
-  | "loan_principal"
   | "salary_gross"
   | "social_insurance"
   | "income_tax"

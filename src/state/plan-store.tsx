@@ -142,34 +142,14 @@ function cascadePersonRemoval(state: Plan, personId: Ulid): Plan {
   const remainingPersons = removeItem(state.persons, personId);
   const yearStart = state.settings.yearStartMonth;
 
-  const accounts = state.accounts.filter((a) => !(a.liability && exprRefsPerson(a.liability.startMonth, personId)));
-  const removedAccountIds = new Set<Ulid>();
-  for (const a of state.accounts) if (!accounts.some((x) => x.id === a.id)) removedAccountIds.add(a.id);
-
-  const snapshots = state.snapshots.filter(
-    (s) => !removedAccountIds.has(s.accountId) && !exprRefsPerson(s.month, personId),
-  );
-  const incomes = state.incomes.filter(
-    (i) => !removedAccountIds.has(i.accountId) && !i.segments.some((seg) => segmentRefsPerson(seg, personId)),
-  );
+  const snapshots = state.snapshots.filter((s) => !exprRefsPerson(s.month, personId));
+  const incomes = state.incomes.filter((i) => !i.segments.some((seg) => segmentRefsPerson(seg, personId)));
   const expenses = state.expenses.filter(
-    (e) =>
-      !removedAccountIds.has(e.accountId) &&
-      !e.segments.some((seg) => segmentRefsPerson(seg, personId)) &&
-      !loanRefsPerson(e.loan, personId),
+    (e) => !e.segments.some((seg) => segmentRefsPerson(seg, personId)) && !loanRefsPerson(e.loan, personId),
   );
-  const events = state.events.filter(
-    (ev) => !removedAccountIds.has(ev.accountId) && !exprRefsPerson(ev.month, personId),
-  );
-  const transfers = state.transfers.filter(
-    (t) =>
-      !removedAccountIds.has(t.fromAccountId) &&
-      !removedAccountIds.has(t.toAccountId) &&
-      !t.segments.some((seg) => segmentRefsPerson(seg, personId)),
-  );
-  const grossSalaries = state.grossSalaries.filter(
-    (s) => !removedAccountIds.has(s.accountId) && !grossSalaryRefsPerson(s, personId),
-  );
+  const events = state.events.filter((ev) => !exprRefsPerson(ev.month, personId));
+  const transfers = state.transfers.filter((t) => !t.segments.some((seg) => segmentRefsPerson(seg, personId)));
+  const grossSalaries = state.grossSalaries.filter((s) => !grossSalaryRefsPerson(s, personId));
 
   const settings: PlanSettings = {
     ...state.settings,
@@ -181,7 +161,6 @@ function cascadePersonRemoval(state: Plan, personId: Ulid): Plan {
     ...state,
     settings,
     persons: remainingPersons,
-    accounts,
     snapshots,
     incomes,
     expenses,
