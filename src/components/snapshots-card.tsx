@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,9 @@ import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
 import { compareYearMonth, isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
 import { resolvePlan } from "@/lib/dsl/resolve";
-import type { MonthExpr, Snapshot, YearMonth } from "@/lib/dsl/types";
+import type { Account, MonthExpr, Snapshot, YearMonth } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
-import { usePlan } from "@/state/plan-store";
+import { type PlanAction, usePlan } from "@/state/plan-store";
 
 export function SnapshotsCard() {
   const { plan, dispatch } = usePlan();
@@ -159,7 +159,7 @@ export function SnapshotsCard() {
                         </Button>
                       </div>
                     </div>
-                    {isExpanded ? <SnapshotEditor snapshot={s} /> : null}
+                    {isExpanded ? <SnapshotEditor snapshot={s} accounts={plan.accounts} dispatch={dispatch} /> : null}
                   </li>
                 );
               })}
@@ -171,12 +171,19 @@ export function SnapshotsCard() {
   );
 }
 
-function SnapshotEditor({ snapshot }: { snapshot: Snapshot }) {
-  const { plan, dispatch } = usePlan();
+type SnapshotEditorProps = {
+  snapshot: Snapshot;
+  accounts: Account[];
+  dispatch: (action: PlanAction) => void;
+};
 
-  const update = (patch: Partial<Omit<Snapshot, "id">>) => {
-    dispatch({ type: "snapshot/update", id: snapshot.id, patch });
-  };
+const SnapshotEditor = memo(function SnapshotEditor({ snapshot, accounts, dispatch }: SnapshotEditorProps) {
+  const update = useCallback(
+    (patch: Partial<Omit<Snapshot, "id">>) => {
+      dispatch({ type: "snapshot/update", id: snapshot.id, patch });
+    },
+    [dispatch, snapshot.id],
+  );
 
   return (
     <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4">
@@ -188,7 +195,7 @@ function SnapshotEditor({ snapshot }: { snapshot: Snapshot }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {plan.accounts.map((a) => (
+              {accounts.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.label}
                 </SelectItem>
@@ -234,4 +241,4 @@ function SnapshotEditor({ snapshot }: { snapshot: Snapshot }) {
       </div>
     </div>
   );
-}
+});

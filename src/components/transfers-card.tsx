@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { SegmentList } from "@/components/segment-list";
@@ -13,9 +13,9 @@ import { NumericInput } from "@/components/ui/numeric-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
-import type { FlowSegment, MonthExpr, Transfer } from "@/lib/dsl/types";
+import type { Account, FlowSegment, MonthExpr, Transfer } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
-import { usePlan } from "@/state/plan-store";
+import { type PlanAction, usePlan } from "@/state/plan-store";
 
 export function TransfersCard() {
   const { plan, dispatch } = usePlan();
@@ -199,7 +199,12 @@ export function TransfersCard() {
                       </div>
                     </div>
                     {isExpanded ? (
-                      <TransferEditor transfer={transfer} planStart={plan.settings.planStartMonth} />
+                      <TransferEditor
+                        transfer={transfer}
+                        planStart={plan.settings.planStartMonth}
+                        accounts={plan.accounts}
+                        dispatch={dispatch}
+                      />
                     ) : null}
                   </div>
                 );
@@ -220,14 +225,17 @@ function formatMonthExpr(expr: MonthExpr): string {
 type TransferEditorProps = {
   transfer: Transfer;
   planStart: MonthExpr;
+  accounts: Account[];
+  dispatch: (action: PlanAction) => void;
 };
 
-function TransferEditor({ transfer, planStart }: TransferEditorProps) {
-  const { plan, dispatch } = usePlan();
-
-  const update = (patch: Partial<Omit<Transfer, "id">>) => {
-    dispatch({ type: "transfer/update", id: transfer.id, patch });
-  };
+const TransferEditor = memo(function TransferEditor({ transfer, planStart, accounts, dispatch }: TransferEditorProps) {
+  const update = useCallback(
+    (patch: Partial<Omit<Transfer, "id">>) => {
+      dispatch({ type: "transfer/update", id: transfer.id, patch });
+    },
+    [dispatch, transfer.id],
+  );
 
   const minEnabled = transfer.minFromBalance !== undefined;
 
@@ -245,7 +253,7 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {plan.accounts.map((a) => (
+              {accounts.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.label}
                 </SelectItem>
@@ -260,7 +268,7 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {plan.accounts.map((a) => (
+              {accounts.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.label}
                 </SelectItem>
@@ -308,4 +316,4 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
       />
     </div>
   );
-}
+});

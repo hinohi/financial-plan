@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { SortableList } from "@/components/sortable-list";
@@ -21,7 +21,7 @@ import {
   type LiabilityScheduleKind,
   type Ulid,
 } from "@/lib/dsl/types";
-import { usePlan } from "@/state/plan-store";
+import { type PlanAction, usePlan } from "@/state/plan-store";
 
 const NONE_VALUE = "__none__";
 
@@ -122,7 +122,7 @@ export function AccountsCard() {
                         </Button>
                       </div>
                     </div>
-                    {isExpanded ? <AccountEditor account={account} /> : null}
+                    {isExpanded ? <AccountEditor account={account} dispatch={dispatch} /> : null}
                   </div>
                 );
               }}
@@ -148,8 +148,12 @@ function summaryForAccount(account: Account): string {
   return "";
 }
 
-function AccountEditor({ account }: { account: Account }) {
-  const { dispatch } = usePlan();
+type AccountEditorProps = {
+  account: Account;
+  dispatch: (action: PlanAction) => void;
+};
+
+const AccountEditor = memo(function AccountEditor({ account, dispatch }: AccountEditorProps) {
   return (
     <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4">
       <div className="grid gap-3 md:grid-cols-[1fr_200px] md:items-end">
@@ -169,7 +173,7 @@ function AccountEditor({ account }: { account: Account }) {
       <AccountParamsEditor account={account} />
     </div>
   );
-}
+});
 
 function AccountParamsEditor({ account }: { account: Account }) {
   switch (account.kind) {

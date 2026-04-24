@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category-select";
 import { CollapseToggle } from "@/components/collapse-toggle";
 import { LoanEditor } from "@/components/loan-editor";
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCollapse } from "@/hooks/use-collapse";
 import { categoryPath } from "@/lib/categories";
 import { newId } from "@/lib/dsl/id";
-import type { Category, Expense, FlowSegment, Income, LoanSpec, MonthExpr, Ulid } from "@/lib/dsl/types";
+import type { Account, Category, Expense, FlowSegment, Income, LoanSpec, MonthExpr, Ulid } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
 import { type PlanAction, usePlan } from "@/state/plan-store";
 
@@ -242,21 +242,8 @@ export function FlowsCard({ kind }: FlowsCardProps) {
                         flow={flow}
                         kind={kind}
                         planStart={plan.settings.planStartMonth}
-                        onLabelChange={(value) =>
-                          dispatch(config.updateAction(flow.id, { label: value } as Partial<Omit<Flow, "id">>))
-                        }
-                        onAccountChange={(value) =>
-                          dispatch(config.updateAction(flow.id, { accountId: value } as Partial<Omit<Flow, "id">>))
-                        }
-                        onCategoryChange={(value) =>
-                          dispatch(config.updateAction(flow.id, { categoryId: value } as Partial<Omit<Flow, "id">>))
-                        }
-                        onSegmentsChange={(next) =>
-                          dispatch(config.updateAction(flow.id, { segments: next } as Partial<Omit<Flow, "id">>))
-                        }
-                        onLoanChange={(next) =>
-                          dispatch(config.updateAction(flow.id, { loan: next } as Partial<Omit<Flow, "id">>))
-                        }
+                        accounts={plan.accounts}
+                        dispatch={dispatch}
                       />
                     ) : null}
                   </div>
@@ -279,26 +266,36 @@ type FlowEditorProps = {
   flow: Flow;
   kind: FlowKind;
   planStart: MonthExpr;
-  onLabelChange: (value: string) => void;
-  onAccountChange: (value: string) => void;
-  onCategoryChange: (value: Ulid | undefined) => void;
-  onSegmentsChange: (next: FlowSegment[]) => void;
-  onLoanChange: (next: LoanSpec | undefined) => void;
+  accounts: Account[];
+  dispatch: (action: PlanAction) => void;
 };
 
-function FlowEditor({
-  flow,
-  kind,
-  planStart,
-  onLabelChange,
-  onAccountChange,
-  onCategoryChange,
-  onSegmentsChange,
-  onLoanChange,
-}: FlowEditorProps) {
-  const { plan } = usePlan();
+const FlowEditor = memo(function FlowEditor({ flow, kind, planStart, accounts, dispatch }: FlowEditorProps) {
+  const config = CONFIG[kind];
   const loan = kind === "expense" ? (flow as Expense).loan : undefined;
   const loanEnabled = !!loan;
+
+  const update = useCallback(
+    (patch: Partial<Omit<Flow, "id">>) => {
+      dispatch(config.updateAction(flow.id, patch as Partial<Omit<Flow, "id">>));
+    },
+    [dispatch, config, flow.id],
+  );
+
+  const onLabelChange = useCallback((v: string) => update({ label: v } as Partial<Omit<Flow, "id">>), [update]);
+  const onAccountChange = useCallback((v: string) => update({ accountId: v } as Partial<Omit<Flow, "id">>), [update]);
+  const onCategoryChange = useCallback(
+    (v: Ulid | undefined) => update({ categoryId: v } as Partial<Omit<Flow, "id">>),
+    [update],
+  );
+  const onSegmentsChange = useCallback(
+    (next: FlowSegment[]) => update({ segments: next } as Partial<Omit<Flow, "id">>),
+    [update],
+  );
+  const onLoanChange = useCallback(
+    (next: LoanSpec | undefined) => update({ loan: next } as Partial<Omit<Flow, "id">>),
+    [update],
+  );
 
   const toggleLoan = (enabled: boolean) => {
     if (enabled) {
@@ -316,7 +313,7 @@ function FlowEditor({
       <div className="grid gap-3 md:grid-cols-3 md:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${flow.id}-label`}>ラベル</Label>
-          <CommittedInput id={`${flow.id}-label`} value={flow.label} onCommit={(v) => onLabelChange(v)} />
+          <CommittedInput id={`${flow.id}-label`} value={flow.label} onCommit={onLabelChange} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${flow.id}-account`}>口座</Label>
@@ -325,7 +322,7 @@ function FlowEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {plan.accounts.map((a) => (
+              {accounts.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.label}
                 </SelectItem>
@@ -362,4 +359,4 @@ function FlowEditor({
       )}
     </div>
   );
-}
+});

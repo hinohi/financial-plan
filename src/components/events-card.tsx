@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { CategorySelect } from "@/components/category-select";
 import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
@@ -16,9 +16,9 @@ import { categoryPath } from "@/lib/categories";
 import { newId } from "@/lib/dsl/id";
 import { compareYearMonth, isPersonAgeRef, resolveMonthExpr } from "@/lib/dsl/month";
 import { resolvePlan } from "@/lib/dsl/resolve";
-import type { Category, MonthExpr, OneShotEvent, Ulid, YearMonth } from "@/lib/dsl/types";
+import type { Account, Category, MonthExpr, OneShotEvent, Ulid, YearMonth } from "@/lib/dsl/types";
 import { formatYen } from "@/lib/format";
-import { usePlan } from "@/state/plan-store";
+import { type PlanAction, usePlan } from "@/state/plan-store";
 
 export function EventsCard() {
   const { plan, dispatch } = usePlan();
@@ -204,7 +204,7 @@ export function EventsCard() {
                         </Button>
                       </div>
                     </div>
-                    {isExpanded ? <EventEditor event={event} /> : null}
+                    {isExpanded ? <EventEditor event={event} accounts={plan.accounts} dispatch={dispatch} /> : null}
                   </li>
                 );
               })}
@@ -216,12 +216,19 @@ export function EventsCard() {
   );
 }
 
-function EventEditor({ event }: { event: OneShotEvent }) {
-  const { plan, dispatch } = usePlan();
+type EventEditorProps = {
+  event: OneShotEvent;
+  accounts: Account[];
+  dispatch: (action: PlanAction) => void;
+};
 
-  const update = (patch: Partial<Omit<OneShotEvent, "id">>) => {
-    dispatch({ type: "event/update", id: event.id, patch });
-  };
+const EventEditor = memo(function EventEditor({ event, accounts, dispatch }: EventEditorProps) {
+  const update = useCallback(
+    (patch: Partial<Omit<OneShotEvent, "id">>) => {
+      dispatch({ type: "event/update", id: event.id, patch });
+    },
+    [dispatch, event.id],
+  );
 
   return (
     <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4">
@@ -237,7 +244,7 @@ function EventEditor({ event }: { event: OneShotEvent }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {plan.accounts.map((a) => (
+              {accounts.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.label}
                 </SelectItem>
@@ -292,4 +299,4 @@ function EventEditor({ event }: { event: OneShotEvent }) {
       </div>
     </div>
   );
-}
+});
