@@ -2,6 +2,7 @@ import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { CommittedInput } from "@/components/ui/committed-input";
 import { Label } from "@/components/ui/label";
+import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
 import { addMonths } from "@/lib/dsl/month";
 import type { LoanRateSegment, LoanSpec, MonthExpr } from "@/lib/dsl/types";
 
@@ -43,10 +44,8 @@ export function LoanEditor({ idPrefix, loan, planStart, onChange }: LoanEditorPr
       <div className="grid gap-3 md:grid-cols-[260px_1fr] md:items-end">
         <div className="grid gap-1.5">
           <Label htmlFor={`${idPrefix}-principal`}>借入元本 (円)</Label>
-          <CommittedInput
+          <NumericCommittedInput
             id={`${idPrefix}-principal`}
-            type="number"
-            inputMode="numeric"
             value={loan.principal}
             onCommit={(v) => {
               const n = Number(v);

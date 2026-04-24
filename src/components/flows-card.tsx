@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { categoryPath } from "@/lib/categories";
@@ -152,13 +153,7 @@ export function FlowsCard({ kind }: FlowsCardProps) {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor={`${kind}-amount`}>月額 (円)</Label>
-                <Input
-                  id={`${kind}-amount`}
-                  type="number"
-                  inputMode="numeric"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
+                <NumericInput id={`${kind}-amount`} value={amount} onChange={setAmount} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor={`${kind}-start`}>開始月</Label>

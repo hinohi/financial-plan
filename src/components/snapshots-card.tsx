@@ -3,10 +3,10 @@ import { CollapseToggle } from "@/components/collapse-toggle";
 import { MonthExprInput } from "@/components/month-expr-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CommittedInput } from "@/components/ui/committed-input";
 import { CommittedTextarea } from "@/components/ui/committed-textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
@@ -114,13 +114,7 @@ export function SnapshotsCard() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="snapshot-balance">残高 (円)</Label>
-                <Input
-                  id="snapshot-balance"
-                  type="number"
-                  inputMode="numeric"
-                  value={balance}
-                  onChange={(e) => setBalance(e.target.value)}
-                />
+                <NumericInput id="snapshot-balance" value={balance} onChange={setBalance} />
               </div>
               <Button onClick={handleAdd} disabled={!canAdd}>
                 追加
@@ -215,10 +209,8 @@ function SnapshotEditor({ snapshot }: { snapshot: Snapshot }) {
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${snapshot.id}-balance`}>残高 (円)</Label>
-          <CommittedInput
+          <NumericCommittedInput
             id={`${snapshot.id}-balance`}
-            type="number"
-            inputMode="numeric"
             value={snapshot.balance}
             onCommit={(v) => {
               const n = Number(v);

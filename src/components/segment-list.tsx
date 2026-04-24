@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { CommittedInput } from "@/components/ui/committed-input";
 import { CommittedTextarea } from "@/components/ui/committed-textarea";
 import { Label } from "@/components/ui/label";
+import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { addMonths } from "@/lib/dsl/month";
 import type { FlowRaise, FlowRaiseKind, FlowSegment, MonthExpr } from "@/lib/dsl/types";
@@ -114,13 +115,7 @@ function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: Seg
           <Label htmlFor={`${idPrefix}-amount`}>
             {(segment.intervalMonths ?? 1) > 1 ? "1 回あたりの額 (円)" : "月額 (円)"}
           </Label>
-          <CommittedInput
-            id={`${idPrefix}-amount`}
-            type="number"
-            inputMode="numeric"
-            value={segment.amount}
-            onCommit={commitAmount}
-          />
+          <NumericCommittedInput id={`${idPrefix}-amount`} value={segment.amount} onCommit={commitAmount} />
         </div>
         {onRemove ? (
           <Button variant="ghost" size="sm" onClick={onRemove}>
@@ -179,11 +174,8 @@ function SegmentRow({ idPrefix, segment, showInterval, onChange, onRemove }: Seg
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor={`${idPrefix}-raise-value`}>値 {raise.kind === "rate" ? "(例: 0.03 → 3%)" : "(円)"}</Label>
-            <CommittedInput
+            <NumericCommittedInput
               id={`${idPrefix}-raise-value`}
-              type="number"
-              inputMode="decimal"
-              step={raise.kind === "rate" ? 0.01 : 1}
               value={raise.value}
               onCommit={(v) => {
                 const n = Number(v);

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
@@ -289,10 +290,8 @@ function LiabilityEditor({ account }: { account: Account }) {
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor={`li-${account.id}-principal`}>借入元本 (円)</Label>
-        <CommittedInput
+        <NumericCommittedInput
           id={`li-${account.id}-principal`}
-          type="number"
-          inputMode="numeric"
           value={params.principal}
           onCommit={(v) => {
             const n = Number(v);

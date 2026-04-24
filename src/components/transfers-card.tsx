@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CommittedInput } from "@/components/ui/committed-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
@@ -119,13 +121,7 @@ export function TransfersCard() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="transfer-amount">月額 (円)</Label>
-                <Input
-                  id="transfer-amount"
-                  type="number"
-                  inputMode="numeric"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
+                <NumericInput id="transfer-amount" value={amount} onChange={setAmount} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="transfer-start">開始月</Label>
@@ -287,10 +283,8 @@ function TransferEditor({ transfer, planStart }: TransferEditorProps) {
           <div className="grid gap-3 md:grid-cols-[240px_1fr] md:items-end">
             <div className="grid gap-1.5">
               <Label htmlFor={`${transfer.id}-min`}>最低残高 (円)</Label>
-              <CommittedInput
+              <NumericCommittedInput
                 id={`${transfer.id}-min`}
-                type="number"
-                inputMode="numeric"
                 value={transfer.minFromBalance ?? 0}
                 onCommit={(v) => {
                   const n = Number(v);

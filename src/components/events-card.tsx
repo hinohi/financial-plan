@@ -8,6 +8,8 @@ import { CommittedInput } from "@/components/ui/committed-input";
 import { CommittedTextarea } from "@/components/ui/committed-textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
+import { NumericInput } from "@/components/ui/numeric-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { categoryPath } from "@/lib/categories";
@@ -147,13 +149,7 @@ export function EventsCard() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="event-amount">金額 (円、負で支出)</Label>
-                <Input
-                  id="event-amount"
-                  type="number"
-                  inputMode="numeric"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
+                <NumericInput id="event-amount" value={amount} onChange={setAmount} />
               </div>
               <Button onClick={handleAdd} disabled={!canAdd}>
                 追加
@@ -271,10 +267,8 @@ function EventEditor({ event }: { event: OneShotEvent }) {
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor={`${event.id}-amount`}>金額 (円、負で支出)</Label>
-          <CommittedInput
+          <NumericCommittedInput
             id={`${event.id}-amount`}
-            type="number"
-            inputMode="numeric"
             value={event.amount}
             onCommit={(v) => {
               const n = Number(v);
