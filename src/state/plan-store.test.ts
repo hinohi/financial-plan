@@ -371,6 +371,132 @@ describe("planReducer", () => {
     const next = planReducer(wired, { type: "person/remove", id: "p1" });
     expect(next.settings.planStartMonth).toBe("2020-01");
   });
+
+  test("person/remove は loan.rateSegments が人物を参照している expense を削除する", () => {
+    const withPerson = planReducer(seed(), {
+      type: "person/add",
+      person: { id: "p1", label: "self", birthMonth: "2000-01" },
+    });
+    const wired: Plan = {
+      ...withPerson,
+      expenses: [
+        ...withPerson.expenses,
+        {
+          id: "e-loan",
+          label: "住宅",
+          accountId: "a1",
+          segments: [{ startMonth: "2030-01", amount: 100 }],
+          loan: {
+            principal: 10_000,
+            rateSegments: [{ startMonth: { kind: "person-age", personId: "p1", age: 30, month: 4 }, annualRate: 0.01 }],
+          },
+        },
+      ],
+    };
+    const next = planReducer(wired, { type: "person/remove", id: "p1" });
+    expect(next.expenses.find((e) => e.id === "e-loan")).toBeUndefined();
+  });
+
+  test("person/remove は grossSalary を personId 参照で除外する", () => {
+    const withPerson = planReducer(seed(), {
+      type: "person/add",
+      person: { id: "p1", label: "self", birthMonth: "2000-01" },
+    });
+    const wired: Plan = {
+      ...withPerson,
+      grossSalaries: [
+        {
+          id: "g1",
+          label: "本業",
+          accountId: "a1",
+          personId: "p1",
+          annualAmount: 5_000_000,
+          startMonth: "2026-01",
+        },
+      ],
+    };
+    const next = planReducer(wired, { type: "person/remove", id: "p1" });
+    expect(next.grossSalaries).toHaveLength(0);
+  });
+
+  test("person/remove は grossSalary を startMonth/endMonth の person-age 参照でも除外する", () => {
+    const p1 = planReducer(seed(), { type: "person/add", person: { id: "p1", label: "X", birthMonth: "1990-01" } });
+    const both = planReducer(p1, { type: "person/add", person: { id: "p2", label: "Y", birthMonth: "1992-01" } });
+    const wired: Plan = {
+      ...both,
+      grossSalaries: [
+        {
+          id: "g1",
+          label: "startMonth 参照",
+          accountId: "a1",
+          personId: "p2",
+          annualAmount: 1_000_000,
+          startMonth: { kind: "person-age", personId: "p1", age: 35, month: 4 },
+        },
+        {
+          id: "g2",
+          label: "endMonth 参照",
+          accountId: "a1",
+          personId: "p2",
+          annualAmount: 1_000_000,
+          startMonth: "2026-04",
+          endMonth: { kind: "person-age", personId: "p1", age: 60, month: 3 },
+        },
+      ],
+    };
+    const next = planReducer(wired, { type: "person/remove", id: "p1" });
+    expect(next.grossSalaries.map((g) => g.id)).toEqual([]);
+  });
+
+  test("category/remove は子カテゴリの parentId を外す", () => {
+    const base: Plan = {
+      ...seed(),
+      categories: [
+        { id: "root", label: "生活", kind: "expense" },
+        { id: "food", label: "食費", kind: "expense", parentId: "root" },
+      ],
+    };
+    const next = planReducer(base, { type: "category/remove", id: "root" });
+    expect(next.categories.find((c) => c.id === "food")?.parentId).toBeUndefined();
+  });
+
+  test("category/remove は income/expense/event の categoryId 参照を undefined にする", () => {
+    const base: Plan = {
+      ...seed(),
+      categories: [{ id: "c1", label: "食費", kind: "expense" }],
+      incomes: [{ id: "i1", label: "x", accountId: "a1", categoryId: "c1", segments: [] }],
+      expenses: [{ id: "e1", label: "x", accountId: "a1", categoryId: "c1", segments: [] }],
+      events: [{ id: "ev1", label: "x", accountId: "a1", categoryId: "c1", month: "2026-06", amount: 1 }],
+    };
+    const next = planReducer(base, { type: "category/remove", id: "c1" });
+    expect(next.incomes[0]?.categoryId).toBeUndefined();
+    expect(next.expenses[0]?.categoryId).toBeUndefined();
+    expect(next.events[0]?.categoryId).toBeUndefined();
+  });
+
+  test("account/remove はその口座を使う全エンティティを cascade 削除する", () => {
+    const base: Plan = {
+      ...seed(),
+      grossSalaries: [
+        {
+          id: "g1",
+          label: "salary",
+          accountId: "a1",
+          personId: "p1",
+          annualAmount: 100,
+          startMonth: "2026-01",
+        },
+      ],
+    };
+    const next = planReducer(base, { type: "account/remove", id: "a1" });
+    expect(next.accounts.find((a) => a.id === "a1")).toBeUndefined();
+    expect(next.snapshots.find((s) => s.accountId === "a1")).toBeUndefined();
+    expect(next.incomes.find((i) => i.accountId === "a1")).toBeUndefined();
+    expect(next.expenses.find((e) => e.accountId === "a1")).toBeUndefined();
+    expect(next.events.find((e) => e.accountId === "a1")).toBeUndefined();
+    expect(next.transfers.find((t) => t.fromAccountId === "a1" || t.toAccountId === "a1")).toBeUndefined();
+    expect(next.grossSalaries.find((g) => g.accountId === "a1")).toBeUndefined();
+  });
 });
 
 function meta(id: string, name = id): PlanMeta {
