@@ -370,9 +370,9 @@ export function hydrateRegistry(raw: unknown): Registry | null {
       typeof p.createdAt === "string" &&
       typeof p.updatedAt === "string",
   );
-  if (plans.length === 0) return null;
-  const currentPlanId = plans.some((p) => p.id === r.currentPlanId) ? r.currentPlanId : (plans[0]?.id ?? "");
-  if (!currentPlanId) return null;
+  const first = plans[0];
+  if (!first) return null;
+  const currentPlanId = plans.some((p) => p.id === r.currentPlanId) ? r.currentPlanId : first.id;
   return { plans, currentPlanId };
 }
 
@@ -447,22 +447,19 @@ export function bootstrap(now: Date = new Date()): Bootstrap {
       const plan = loadPlanById(meta.id);
       if (plan) plans[meta.id] = plan;
     }
-    const knownIds = new Set(existing.plans.map((m) => m.id));
     const available = existing.plans.filter((m) => plans[m.id]);
     if (available.length === existing.plans.length) {
       return { registry: existing, plans };
     }
-    const filtered: Registry = {
-      plans: available,
-      currentPlanId: available.some((m) => m.id === existing.currentPlanId)
-        ? existing.currentPlanId
-        : (available[0]?.id ?? ""),
-    };
-    if (filtered.plans.length > 0) {
+    const first = available[0];
+    if (first) {
+      const filtered: Registry = {
+        plans: available,
+        currentPlanId: available.some((m) => m.id === existing.currentPlanId) ? existing.currentPlanId : first.id,
+      };
       saveRegistry(filtered);
       return { registry: filtered, plans };
     }
-    void knownIds;
   }
 
   const legacy = loadLegacyPlan();
