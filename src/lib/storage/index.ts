@@ -1,6 +1,28 @@
 import { newId } from "@/lib/dsl/id";
+import { isMonthExpr, isValidYearMonth } from "@/lib/dsl/month";
 import { emptyPlan } from "@/lib/dsl/plan";
-import type { Category, Person, Plan, Ulid } from "@/lib/dsl/types";
+import type {
+  Account,
+  AccountKind,
+  Category,
+  Expense,
+  FlowRaise,
+  FlowRaiseKind,
+  FlowSegment,
+  GrossSalary,
+  Income,
+  LoanRateSegment,
+  LoanSpec,
+  MonthExpr,
+  OneShotEvent,
+  Person,
+  Plan,
+  PlanSettings,
+  Snapshot,
+  Transfer,
+  Ulid,
+  YearStartMonth,
+} from "@/lib/dsl/types";
 import samplePlanData from "@/lib/sample-plan.json";
 
 const REGISTRY_KEY = "fp.registry.v1";
@@ -55,6 +77,7 @@ function hydratePersons(raw: unknown): Person[] {
     if (!v || typeof v !== "object") continue;
     const p = v as Partial<Person>;
     if (typeof p.id !== "string" || typeof p.label !== "string" || typeof p.birthMonth !== "string") continue;
+    if (!isValidYearMonth(p.birthMonth)) continue;
     const person: Person = { id: p.id, label: p.label, birthMonth: p.birthMonth };
     if (typeof p.previousYearIncome === "number" && Number.isFinite(p.previousYearIncome)) {
       person.previousYearIncome = p.previousYearIncome;
@@ -64,23 +87,272 @@ function hydratePersons(raw: unknown): Person[] {
   return out;
 }
 
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+function hydrateMonthExpr(v: unknown): MonthExpr | null {
+  return isMonthExpr(v) ? v : null;
+}
+
+function hydrateSettings(raw: unknown): PlanSettings | null {
+  if (!raw || typeof raw !== "object") return null;
+  const s = raw as Partial<PlanSettings> & Record<string, unknown>;
+  const ys = s.yearStartMonth;
+  if (typeof ys !== "number" || !Number.isInteger(ys) || ys < 1 || ys > 12) return null;
+  const start = hydrateMonthExpr(s.planStartMonth);
+  if (!start) return null;
+  const end = hydrateMonthExpr(s.planEndMonth);
+  if (!end) return null;
+  return { yearStartMonth: ys as YearStartMonth, planStartMonth: start, planEndMonth: end };
+}
+
+function hydrateAccounts(raw: unknown): Account[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Account[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const a = v as Partial<Account> & { kind?: unknown; investment?: unknown };
+    if (typeof a.id !== "string" || typeof a.label !== "string") continue;
+    if (a.kind !== "cash" && a.kind !== "investment") continue;
+    const account: Account = { id: a.id, label: a.label, kind: a.kind as AccountKind };
+    if (a.kind === "investment" && a.investment && typeof a.investment === "object") {
+      const rate = (a.investment as { annualRate?: unknown }).annualRate;
+      if (isFiniteNumber(rate)) account.investment = { annualRate: rate };
+    }
+    out.push(account);
+  }
+  return out;
+}
+
+function hydrateSnapshots(raw: unknown): Snapshot[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Snapshot[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const s = v as Partial<Snapshot> & { month?: unknown; note?: unknown };
+    if (typeof s.id !== "string" || typeof s.accountId !== "string") continue;
+    if (!isFiniteNumber(s.balance)) continue;
+    const month = hydrateMonthExpr(s.month);
+    if (!month) continue;
+    const snapshot: Snapshot = { id: s.id, accountId: s.accountId, month, balance: s.balance };
+    if (typeof s.note === "string") snapshot.note = s.note;
+    out.push(snapshot);
+  }
+  return out;
+}
+
+function hydrateFlowRaise(raw: unknown): FlowRaise | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Partial<FlowRaise> & { kind?: unknown };
+  if (r.kind !== "fixed" && r.kind !== "rate") return undefined;
+  if (!isFiniteNumber(r.value)) return undefined;
+  if (!isFiniteNumber(r.everyMonths)) return undefined;
+  return { kind: r.kind as FlowRaiseKind, value: r.value, everyMonths: r.everyMonths };
+}
+
+function hydrateFlowSegments(raw: unknown): FlowSegment[] {
+  if (!Array.isArray(raw)) return [];
+  const out: FlowSegment[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const s = v as Partial<FlowSegment> & {
+      startMonth?: unknown;
+      endMonth?: unknown;
+      raise?: unknown;
+      note?: unknown;
+    };
+    const startMonth = hydrateMonthExpr(s.startMonth);
+    if (!startMonth) continue;
+    if (!isFiniteNumber(s.amount)) continue;
+    const seg: FlowSegment = { startMonth, amount: s.amount };
+    if (s.endMonth !== undefined) {
+      const end = hydrateMonthExpr(s.endMonth);
+      if (!end) continue;
+      seg.endMonth = end;
+    }
+    if (isFiniteNumber(s.intervalMonths)) seg.intervalMonths = s.intervalMonths;
+    const raise = hydrateFlowRaise(s.raise);
+    if (raise) seg.raise = raise;
+    if (typeof s.note === "string") seg.note = s.note;
+    out.push(seg);
+  }
+  return out;
+}
+
+function hydrateIncomes(raw: unknown): Income[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Income[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const i = v as Partial<Income> & { categoryId?: unknown };
+    if (typeof i.id !== "string" || typeof i.label !== "string" || typeof i.accountId !== "string") continue;
+    const income: Income = {
+      id: i.id,
+      label: i.label,
+      accountId: i.accountId,
+      segments: hydrateFlowSegments(i.segments),
+    };
+    if (typeof i.categoryId === "string") income.categoryId = i.categoryId;
+    out.push(income);
+  }
+  return out;
+}
+
+function hydrateLoan(raw: unknown): LoanSpec | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const l = raw as Partial<LoanSpec> & { rateSegments?: unknown };
+  if (!isFiniteNumber(l.principal)) return undefined;
+  if (!Array.isArray(l.rateSegments)) return undefined;
+  const rateSegments: LoanRateSegment[] = [];
+  for (const v of l.rateSegments) {
+    if (!v || typeof v !== "object") continue;
+    const r = v as Partial<LoanRateSegment> & { startMonth?: unknown; endMonth?: unknown };
+    const startMonth = hydrateMonthExpr(r.startMonth);
+    if (!startMonth) continue;
+    if (!isFiniteNumber(r.annualRate)) continue;
+    const seg: LoanRateSegment = { startMonth, annualRate: r.annualRate };
+    if (r.endMonth !== undefined) {
+      const end = hydrateMonthExpr(r.endMonth);
+      if (!end) continue;
+      seg.endMonth = end;
+    }
+    rateSegments.push(seg);
+  }
+  return { principal: l.principal, rateSegments };
+}
+
+function hydrateExpenses(raw: unknown): Expense[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Expense[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const e = v as Partial<Expense> & { categoryId?: unknown; loan?: unknown };
+    if (typeof e.id !== "string" || typeof e.label !== "string" || typeof e.accountId !== "string") continue;
+    const expense: Expense = {
+      id: e.id,
+      label: e.label,
+      accountId: e.accountId,
+      segments: hydrateFlowSegments(e.segments),
+    };
+    if (typeof e.categoryId === "string") expense.categoryId = e.categoryId;
+    const loan = hydrateLoan(e.loan);
+    if (loan) expense.loan = loan;
+    out.push(expense);
+  }
+  return out;
+}
+
+function hydrateEvents(raw: unknown): OneShotEvent[] {
+  if (!Array.isArray(raw)) return [];
+  const out: OneShotEvent[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const ev = v as Partial<OneShotEvent> & { month?: unknown; categoryId?: unknown; note?: unknown };
+    if (typeof ev.id !== "string" || typeof ev.label !== "string" || typeof ev.accountId !== "string") continue;
+    const month = hydrateMonthExpr(ev.month);
+    if (!month) continue;
+    if (!isFiniteNumber(ev.amount)) continue;
+    const event: OneShotEvent = { id: ev.id, label: ev.label, accountId: ev.accountId, month, amount: ev.amount };
+    if (typeof ev.categoryId === "string") event.categoryId = ev.categoryId;
+    if (typeof ev.note === "string") event.note = ev.note;
+    out.push(event);
+  }
+  return out;
+}
+
+function hydrateTransfers(raw: unknown): Transfer[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Transfer[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const t = v as Partial<Transfer> & { minFromBalance?: unknown };
+    if (
+      typeof t.id !== "string" ||
+      typeof t.label !== "string" ||
+      typeof t.fromAccountId !== "string" ||
+      typeof t.toAccountId !== "string"
+    ) {
+      continue;
+    }
+    const transfer: Transfer = {
+      id: t.id,
+      label: t.label,
+      fromAccountId: t.fromAccountId,
+      toAccountId: t.toAccountId,
+      segments: hydrateFlowSegments(t.segments),
+    };
+    if (isFiniteNumber(t.minFromBalance)) transfer.minFromBalance = t.minFromBalance;
+    out.push(transfer);
+  }
+  return out;
+}
+
+function hydrateGrossSalaries(raw: unknown): GrossSalary[] {
+  if (!Array.isArray(raw)) return [];
+  const out: GrossSalary[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const s = v as Partial<GrossSalary> & {
+      startMonth?: unknown;
+      endMonth?: unknown;
+      raise?: unknown;
+      dependents?: unknown;
+      hasSpouseDeduction?: unknown;
+      note?: unknown;
+    };
+    if (
+      typeof s.id !== "string" ||
+      typeof s.label !== "string" ||
+      typeof s.accountId !== "string" ||
+      typeof s.personId !== "string"
+    ) {
+      continue;
+    }
+    if (!isFiniteNumber(s.annualAmount)) continue;
+    const startMonth = hydrateMonthExpr(s.startMonth);
+    if (!startMonth) continue;
+    const salary: GrossSalary = {
+      id: s.id,
+      label: s.label,
+      accountId: s.accountId,
+      personId: s.personId,
+      annualAmount: s.annualAmount,
+      startMonth,
+    };
+    if (s.endMonth !== undefined) {
+      const end = hydrateMonthExpr(s.endMonth);
+      if (!end) continue;
+      salary.endMonth = end;
+    }
+    const raise = hydrateFlowRaise(s.raise);
+    if (raise) salary.raise = raise;
+    if (isFiniteNumber(s.dependents)) salary.dependents = s.dependents;
+    if (typeof s.hasSpouseDeduction === "boolean") salary.hasSpouseDeduction = s.hasSpouseDeduction;
+    if (typeof s.note === "string") salary.note = s.note;
+    out.push(salary);
+  }
+  return out;
+}
+
 export function hydratePlan(raw: unknown): Plan | null {
   if (!raw || typeof raw !== "object") return null;
   const p = raw as Partial<Plan> & Record<string, unknown>;
-  if (!p.settings) return null;
   if (p.schemaVersion !== undefined && p.schemaVersion !== CURRENT_SCHEMA_VERSION) return null;
+  const settings = hydrateSettings(p.settings);
+  if (!settings) return null;
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    settings: p.settings,
+    settings,
     persons: hydratePersons(p.persons),
-    accounts: p.accounts ?? [],
-    snapshots: p.snapshots ?? [],
-    incomes: p.incomes ?? [],
-    expenses: p.expenses ?? [],
-    events: p.events ?? [],
-    transfers: p.transfers ?? [],
+    accounts: hydrateAccounts(p.accounts),
+    snapshots: hydrateSnapshots(p.snapshots),
+    incomes: hydrateIncomes(p.incomes),
+    expenses: hydrateExpenses(p.expenses),
+    events: hydrateEvents(p.events),
+    transfers: hydrateTransfers(p.transfers),
     categories: hydrateCategories(p.categories),
-    grossSalaries: Array.isArray(p.grossSalaries) ? p.grossSalaries : [],
+    grossSalaries: hydrateGrossSalaries(p.grossSalaries),
   };
 }
 
