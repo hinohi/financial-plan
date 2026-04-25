@@ -4,7 +4,7 @@ import { computeSegmentAmount, interpret, loanMonthlyPayment, monthlyCompoundRat
 
 function basePlan(overrides: Partial<Plan> = {}): Plan {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     settings: {
       yearStartMonth: 1,
       planStartMonth: "2026-01",
@@ -19,6 +19,7 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
     transfers: [],
     categories: [],
     grossSalaries: [],
+    taxRuleSets: [],
     ...overrides,
   };
 }
@@ -709,7 +710,7 @@ describe("interpret", () => {
 describe("investment interest", () => {
   test("annualRate が設定された投資口座は月初残高に対する利息を interest として出力する", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
       accounts: [{ id: "inv", label: "投資", kind: "investment", investment: { annualRate: 0.12 } }],
       snapshots: [{ id: "s1", accountId: "inv", month: "2026-01", balance: 10000 }],
@@ -735,7 +736,7 @@ describe("investment interest", () => {
 
   test("annualRate=0 や params 未設定なら利息は出ない", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
       accounts: [
         { id: "a1", label: "投資0", kind: "investment", investment: { annualRate: 0 } },
@@ -771,7 +772,7 @@ describe("loan expense", () => {
 
   test("loan expense は月ごとに元利均等の返済額を expense として出す", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
       snapshots: [],
@@ -803,7 +804,7 @@ describe("loan expense", () => {
 
   test("loan expense はローン終了月以降は何も出さない", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2027-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
       snapshots: [],
@@ -832,7 +833,7 @@ describe("loan expense", () => {
 
   test("loan expense は金利変更時に返済額が再計算される", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2027-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
       snapshots: [],
@@ -872,7 +873,7 @@ describe("loan expense", () => {
 
   test("人物参照を含む segment は resolve されて計算される", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2030-12" },
       persons: [{ id: "p1", label: "子", birthMonth: "2020-04" }],
       accounts: [{ id: "a1", label: "cash", kind: "cash" }],
@@ -906,7 +907,7 @@ describe("loan expense", () => {
 
   test("人物参照の解決不能な snapshot は除外される", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2030-12" },
       persons: [],
       grossSalaries: [],
@@ -1026,7 +1027,7 @@ describe("loan expense", () => {
 
   test("loan を持つ expense は segments より loan 側が優先される", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
       snapshots: [],
@@ -1056,7 +1057,7 @@ describe("loan expense", () => {
 
   test("loan 期間全体が plan 開始より前なら返済は何も出ない", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2030-01", planEndMonth: "2030-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
       snapshots: [],
@@ -1088,7 +1089,7 @@ describe("loan expense", () => {
     // plan は 2026-01 開始なので、2025 年分の 12 ヶ月は balance だけ減らして表に出ず、
     // 2026-01..2026-12 の 12 ヶ月分のみ -100 として出力される。
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
       snapshots: [],
@@ -1132,7 +1133,7 @@ describe("loan expense", () => {
 
   test("投資口座の annualRate が負でも interest が NaN を出さない", () => {
     const plan: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
       accounts: [{ id: "inv", label: "投資", kind: "investment", investment: { annualRate: -0.1 } }],
       snapshots: [{ id: "s1", accountId: "inv", month: "2026-01", balance: 10_000 }],
@@ -1148,6 +1149,114 @@ describe("loan expense", () => {
     expect(interests.every((e) => Number.isFinite(e.amount))).toBe(true);
     // -10% 年利の 1 ヶ月分は負の amount
     expect(interests[0]?.amount).toBeLessThan(0);
+  });
+});
+
+describe("taxRuleSets による期間切替", () => {
+  test("年で異なる税制ルールが適用され、社保が年ごとに変わる", () => {
+    // 2026年: ビルトイン相当の料率
+    // 2027年: 健康保険のみ料率を 2 倍にしたルール
+    const plan = basePlan({
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2027-12" },
+      persons: [{ id: "p1", label: "自分", birthMonth: "1990-01" }],
+      grossSalaries: [
+        {
+          id: "g1",
+          label: "本業",
+          accountId: "a1",
+          personId: "p1",
+          annualAmount: 6_000_000,
+          startMonth: "2026-01",
+        },
+      ],
+      taxRuleSets: [
+        {
+          id: "rs-2026",
+          label: "2026",
+          effectiveFromYear: 2026,
+          socialInsurance: {
+            rates: { health: 0.0499, pension: 0.0915, employment: 0.006, longTermCare: 0.0091 },
+            annualCaps: { health: 1_390_000 * 12, pension: 650_000 * 12 },
+            longTermCareStartAge: 40,
+          },
+          employmentIncomeDeduction: [
+            { upTo: 1_625_000, kind: "flat", amount: 550_000 },
+            { upTo: 1_800_000, kind: "formula", rate: 0.4, add: -100_000 },
+            { upTo: 3_600_000, kind: "formula", rate: 0.3, add: 80_000 },
+            { upTo: 6_600_000, kind: "formula", rate: 0.2, add: 440_000 },
+            { upTo: 8_500_000, kind: "formula", rate: 0.1, add: 1_100_000 },
+            { upTo: null, kind: "flat", amount: 1_950_000 },
+          ],
+          incomeTax: {
+            brackets: [
+              { upTo: 1_950_000, rate: 0.05, subtract: 0 },
+              { upTo: 3_300_000, rate: 0.1, subtract: 97_500 },
+              { upTo: 6_950_000, rate: 0.2, subtract: 427_500 },
+              { upTo: 9_000_000, rate: 0.23, subtract: 636_000 },
+              { upTo: 18_000_000, rate: 0.33, subtract: 1_536_000 },
+              { upTo: 40_000_000, rate: 0.4, subtract: 2_796_000 },
+              { upTo: null, rate: 0.45, subtract: 4_796_000 },
+            ],
+            basicDeduction: 480_000,
+            spouseDeduction: 380_000,
+            dependentDeduction: 380_000,
+            reconstructionSurtaxMultiplier: 1.021,
+          },
+          residentTax: {
+            basicDeduction: 430_000,
+            spouseDeduction: 330_000,
+            dependentDeduction: 330_000,
+            incomeRate: 0.1,
+            perCapita: 5_000,
+          },
+        },
+        {
+          id: "rs-2027",
+          label: "2027 (健保 2 倍)",
+          effectiveFromYear: 2027,
+          socialInsurance: {
+            rates: { health: 0.0998, pension: 0.0915, employment: 0.006, longTermCare: 0.0091 },
+            annualCaps: { health: 1_390_000 * 12, pension: 650_000 * 12 },
+            longTermCareStartAge: 40,
+          },
+          employmentIncomeDeduction: [
+            { upTo: 1_625_000, kind: "flat", amount: 550_000 },
+            { upTo: 1_800_000, kind: "formula", rate: 0.4, add: -100_000 },
+            { upTo: 3_600_000, kind: "formula", rate: 0.3, add: 80_000 },
+            { upTo: 6_600_000, kind: "formula", rate: 0.2, add: 440_000 },
+            { upTo: 8_500_000, kind: "formula", rate: 0.1, add: 1_100_000 },
+            { upTo: null, kind: "flat", amount: 1_950_000 },
+          ],
+          incomeTax: {
+            brackets: [
+              { upTo: 1_950_000, rate: 0.05, subtract: 0 },
+              { upTo: 3_300_000, rate: 0.1, subtract: 97_500 },
+              { upTo: 6_950_000, rate: 0.2, subtract: 427_500 },
+              { upTo: 9_000_000, rate: 0.23, subtract: 636_000 },
+              { upTo: 18_000_000, rate: 0.33, subtract: 1_536_000 },
+              { upTo: 40_000_000, rate: 0.4, subtract: 2_796_000 },
+              { upTo: null, rate: 0.45, subtract: 4_796_000 },
+            ],
+            basicDeduction: 480_000,
+            spouseDeduction: 380_000,
+            dependentDeduction: 380_000,
+            reconstructionSurtaxMultiplier: 1.021,
+          },
+          residentTax: {
+            basicDeduction: 430_000,
+            spouseDeduction: 330_000,
+            dependentDeduction: 330_000,
+            incomeRate: 0.1,
+            perCapita: 5_000,
+          },
+        },
+      ],
+    });
+    const entries = interpret(plan).filter((e) => e.sourceKind === "social_insurance");
+    const si2026 = entries.find((e) => e.month === "2026-01")?.amount ?? 0;
+    const si2027 = entries.find((e) => e.month === "2027-01")?.amount ?? 0;
+    // 健保料率が 2 倍になる年は社保額が増える (= -符号で絶対値が増える)
+    expect(si2027).toBeLessThan(si2026);
   });
 });
 

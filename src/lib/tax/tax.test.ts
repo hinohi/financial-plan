@@ -1,11 +1,18 @@
 import { describe, expect, it } from "bun:test";
+import type { TaxRuleSet } from "@/lib/dsl/types";
 import {
+  BUILT_IN_TAX_RULE_SET,
   computeAnnualIncomeTax,
   computeAnnualResidentTax,
   computeAnnualSocialInsurance,
   computeEmploymentIncomeDeduction,
   computeIncomeTaxBase,
+  resolveTaxRuleSet,
 } from "./index";
+
+function makeRuleSet(year: number, override: Partial<TaxRuleSet> = {}): TaxRuleSet {
+  return { ...BUILT_IN_TAX_RULE_SET, id: `rs-${year}`, label: `rs-${year}`, effectiveFromYear: year, ...override };
+}
 
 describe("computeAnnualSocialInsurance", () => {
   it("40歳未満は介護保険がゼロ", () => {
@@ -182,5 +189,40 @@ describe("computeEmploymentIncomeDeduction 境界値", () => {
     expect(computeEmploymentIncomeDeduction(8_500_000)).toBe(1_950_000);
     expect(computeEmploymentIncomeDeduction(8_500_001)).toBe(1_950_000);
     expect(computeEmploymentIncomeDeduction(100_000_000)).toBe(1_950_000);
+  });
+});
+
+describe("resolveTaxRuleSet", () => {
+  it("空配列ならビルトインを返す", () => {
+    expect(resolveTaxRuleSet([], 2030)).toBe(BUILT_IN_TAX_RULE_SET);
+  });
+
+  it("対象年に有効な (effectiveFromYear <= year) 中で最大のものを選ぶ", () => {
+    const a = makeRuleSet(2024);
+    const b = makeRuleSet(2027);
+    const c = makeRuleSet(2030);
+    expect(resolveTaxRuleSet([a, b, c], 2026)).toBe(a);
+    expect(resolveTaxRuleSet([a, b, c], 2027)).toBe(b);
+    expect(resolveTaxRuleSet([a, b, c], 2029)).toBe(b);
+    expect(resolveTaxRuleSet([a, b, c], 2030)).toBe(c);
+    expect(resolveTaxRuleSet([a, b, c], 2099)).toBe(c);
+  });
+
+  it("最古ルールより前の年は最古ルールを返す (前向き拡張)", () => {
+    const a = makeRuleSet(2024);
+    const b = makeRuleSet(2030);
+    expect(resolveTaxRuleSet([b, a], 2000)).toBe(a);
+  });
+
+  it("ルールセットが料率を変えると計算に反映される", () => {
+    const lower = makeRuleSet(2026, {
+      socialInsurance: {
+        ...BUILT_IN_TAX_RULE_SET.socialInsurance,
+        rates: { health: 0.04, pension: 0.08, employment: 0.005, longTermCare: 0.008 },
+      },
+    });
+    const a = computeAnnualSocialInsurance(5_000_000, 30);
+    const b = computeAnnualSocialInsurance(5_000_000, 30, lower);
+    expect(b.total).toBeLessThan(a.total);
   });
 });

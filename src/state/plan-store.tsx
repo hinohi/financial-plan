@@ -24,6 +24,7 @@ import type {
   Plan,
   PlanSettings,
   Snapshot,
+  TaxRuleSet,
   Transfer,
   Ulid,
   YearMonth,
@@ -77,7 +78,10 @@ export type PlanAction =
   | { type: "gross-salary/add"; salary: GrossSalary }
   | { type: "gross-salary/update"; id: Ulid; patch: Partial<Omit<GrossSalary, "id">> }
   | { type: "gross-salary/remove"; id: Ulid }
-  | { type: "gross-salaries/reorder"; order: Ulid[] };
+  | { type: "gross-salaries/reorder"; order: Ulid[] }
+  | { type: "tax-rule-set/add"; ruleSet: TaxRuleSet }
+  | { type: "tax-rule-set/update"; id: Ulid; patch: Partial<Omit<TaxRuleSet, "id">> }
+  | { type: "tax-rule-set/remove"; id: Ulid };
 
 function updateItem<T extends { id: Ulid }>(list: T[], id: Ulid, patch: Partial<Omit<T, "id">>): T[] {
   return list.map((item) => (item.id === id ? { ...item, ...patch } : item));
@@ -238,6 +242,12 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
       return { ...state, grossSalaries: removeItem(state.grossSalaries, action.id) };
     case "gross-salaries/reorder":
       return { ...state, grossSalaries: reorderItems(state.grossSalaries, action.order) };
+    case "tax-rule-set/add":
+      return { ...state, taxRuleSets: [...(state.taxRuleSets ?? []), action.ruleSet] };
+    case "tax-rule-set/update":
+      return { ...state, taxRuleSets: updateItem(state.taxRuleSets ?? [], action.id, action.patch) };
+    case "tax-rule-set/remove":
+      return { ...state, taxRuleSets: removeItem(state.taxRuleSets ?? [], action.id) };
   }
 }
 

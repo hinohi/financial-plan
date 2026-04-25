@@ -11,6 +11,7 @@ import { PlansCard } from "@/components/plans-card";
 import { SalariesCard } from "@/components/salaries-card";
 import { SettingsCard } from "@/components/settings-card";
 import { SnapshotsCard } from "@/components/snapshots-card";
+import { TaxRuleSetsCard } from "@/components/tax-rule-sets-card";
 import { TransfersCard } from "@/components/transfers-card";
 import "./index.css";
 
@@ -35,6 +36,7 @@ export function App() {
       <CategoriesCard />
       <SnapshotsCard />
       <SalariesCard />
+      <TaxRuleSetsCard />
       <FlowsCard kind="income" />
       <FlowsCard kind="expense" />
       <EventsCard />

@@ -5,12 +5,15 @@ import type {
   Account,
   AccountKind,
   Category,
+  EmploymentIncomeDeductionBracket,
   Expense,
   FlowRaise,
   FlowRaiseKind,
   FlowSegment,
   GrossSalary,
   Income,
+  IncomeTaxBracket,
+  IncomeTaxRules,
   LoanRateSegment,
   LoanSpec,
   MonthExpr,
@@ -18,7 +21,10 @@ import type {
   Person,
   Plan,
   PlanSettings,
+  ResidentTaxRules,
   Snapshot,
+  SocialInsuranceRules,
+  TaxRuleSet,
   Transfer,
   Ulid,
   YearStartMonth,
@@ -28,7 +34,9 @@ const REGISTRY_KEY = "fp.registry.v1";
 const PLAN_KEY_PREFIX = "fp.plans.";
 const LEGACY_PLAN_KEY = "fp.plan.v1";
 
-export const CURRENT_SCHEMA_VERSION = 1 as const;
+export const CURRENT_SCHEMA_VERSION = 2 as const;
+/** マイグレーション可能な過去スキーマ。読み込み時にだけ受理し、保存は常に最新版で行う */
+const SUPPORTED_SCHEMA_VERSIONS: readonly number[] = [1, 2];
 
 export type PlanMeta = {
   id: Ulid;
@@ -335,12 +343,140 @@ function hydrateGrossSalaries(raw: unknown): GrossSalary[] {
   return out;
 }
 
+function hydrateIncomeTaxBrackets(raw: unknown): IncomeTaxBracket[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: IncomeTaxBracket[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") return null;
+    const b = v as Partial<IncomeTaxBracket>;
+    if (b.upTo !== null && !isFiniteNumber(b.upTo)) return null;
+    if (!isFiniteNumber(b.rate)) return null;
+    if (!isFiniteNumber(b.subtract)) return null;
+    out.push({ upTo: b.upTo, rate: b.rate, subtract: b.subtract });
+  }
+  return out;
+}
+
+function hydrateEmploymentIncomeDeduction(raw: unknown): EmploymentIncomeDeductionBracket[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: EmploymentIncomeDeductionBracket[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") return null;
+    const b = v as Partial<EmploymentIncomeDeductionBracket> & { kind?: unknown };
+    if (b.upTo !== null && !isFiniteNumber(b.upTo)) return null;
+    if (b.kind === "flat") {
+      const amount = (b as { amount?: unknown }).amount;
+      if (!isFiniteNumber(amount)) return null;
+      out.push({ upTo: b.upTo, kind: "flat", amount });
+    } else if (b.kind === "formula") {
+      const rate = (b as { rate?: unknown }).rate;
+      const add = (b as { add?: unknown }).add;
+      if (!isFiniteNumber(rate)) return null;
+      if (!isFiniteNumber(add)) return null;
+      out.push({ upTo: b.upTo, kind: "formula", rate, add });
+    } else {
+      return null;
+    }
+  }
+  return out;
+}
+
+function hydrateSocialInsuranceRules(raw: unknown): SocialInsuranceRules | null {
+  if (!raw || typeof raw !== "object") return null;
+  const s = raw as Partial<SocialInsuranceRules>;
+  const rates = s.rates as Partial<SocialInsuranceRules["rates"]> | undefined;
+  const caps = s.annualCaps as Partial<SocialInsuranceRules["annualCaps"]> | undefined;
+  if (!rates || typeof rates !== "object" || !caps || typeof caps !== "object") return null;
+  if (!isFiniteNumber(rates.health) || !isFiniteNumber(rates.pension)) return null;
+  if (!isFiniteNumber(rates.employment) || !isFiniteNumber(rates.longTermCare)) return null;
+  if (!isFiniteNumber(caps.health) || !isFiniteNumber(caps.pension)) return null;
+  if (!isFiniteNumber(s.longTermCareStartAge)) return null;
+  return {
+    rates: {
+      health: rates.health,
+      pension: rates.pension,
+      employment: rates.employment,
+      longTermCare: rates.longTermCare,
+    },
+    annualCaps: { health: caps.health, pension: caps.pension },
+    longTermCareStartAge: s.longTermCareStartAge,
+  };
+}
+
+function hydrateIncomeTaxRules(raw: unknown): IncomeTaxRules | null {
+  if (!raw || typeof raw !== "object") return null;
+  const i = raw as Partial<IncomeTaxRules>;
+  const brackets = hydrateIncomeTaxBrackets(i.brackets);
+  if (!brackets) return null;
+  if (!isFiniteNumber(i.basicDeduction)) return null;
+  if (!isFiniteNumber(i.spouseDeduction)) return null;
+  if (!isFiniteNumber(i.dependentDeduction)) return null;
+  if (!isFiniteNumber(i.reconstructionSurtaxMultiplier)) return null;
+  return {
+    brackets,
+    basicDeduction: i.basicDeduction,
+    spouseDeduction: i.spouseDeduction,
+    dependentDeduction: i.dependentDeduction,
+    reconstructionSurtaxMultiplier: i.reconstructionSurtaxMultiplier,
+  };
+}
+
+function hydrateResidentTaxRules(raw: unknown): ResidentTaxRules | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Partial<ResidentTaxRules>;
+  if (!isFiniteNumber(r.basicDeduction)) return null;
+  if (!isFiniteNumber(r.spouseDeduction)) return null;
+  if (!isFiniteNumber(r.dependentDeduction)) return null;
+  if (!isFiniteNumber(r.incomeRate)) return null;
+  if (!isFiniteNumber(r.perCapita)) return null;
+  return {
+    basicDeduction: r.basicDeduction,
+    spouseDeduction: r.spouseDeduction,
+    dependentDeduction: r.dependentDeduction,
+    incomeRate: r.incomeRate,
+    perCapita: r.perCapita,
+  };
+}
+
+function hydrateTaxRuleSets(raw: unknown): TaxRuleSet[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TaxRuleSet[] = [];
+  for (const v of raw) {
+    if (!v || typeof v !== "object") continue;
+    const r = v as Partial<TaxRuleSet> & { note?: unknown };
+    if (typeof r.id !== "string" || typeof r.label !== "string") continue;
+    if (!isFiniteNumber(r.effectiveFromYear)) continue;
+    const si = hydrateSocialInsuranceRules(r.socialInsurance);
+    if (!si) continue;
+    const eid = hydrateEmploymentIncomeDeduction(r.employmentIncomeDeduction);
+    if (!eid) continue;
+    const it = hydrateIncomeTaxRules(r.incomeTax);
+    if (!it) continue;
+    const rt = hydrateResidentTaxRules(r.residentTax);
+    if (!rt) continue;
+    const ruleSet: TaxRuleSet = {
+      id: r.id,
+      label: r.label,
+      effectiveFromYear: r.effectiveFromYear,
+      socialInsurance: si,
+      employmentIncomeDeduction: eid,
+      incomeTax: it,
+      residentTax: rt,
+    };
+    if (typeof r.note === "string") ruleSet.note = r.note;
+    out.push(ruleSet);
+  }
+  return out;
+}
+
 export function hydratePlan(raw: unknown): Plan | null {
   if (!raw || typeof raw !== "object") return null;
   const p = raw as Partial<Plan> & Record<string, unknown>;
-  if (p.schemaVersion !== undefined && p.schemaVersion !== CURRENT_SCHEMA_VERSION) return null;
+  if (p.schemaVersion !== undefined && !SUPPORTED_SCHEMA_VERSIONS.includes(p.schemaVersion as number)) return null;
   const settings = hydrateSettings(p.settings);
   if (!settings) return null;
+  // schemaVersion 1 のプランには taxRuleSets が無いので空配列にマイグレーションする
+  const taxRuleSets = p.schemaVersion === CURRENT_SCHEMA_VERSION ? hydrateTaxRuleSets(p.taxRuleSets) : [];
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     settings,
@@ -353,6 +489,7 @@ export function hydratePlan(raw: unknown): Plan | null {
     transfers: hydrateTransfers(p.transfers),
     categories: hydrateCategories(p.categories),
     grossSalaries: hydrateGrossSalaries(p.grossSalaries),
+    taxRuleSets,
   };
 }
 

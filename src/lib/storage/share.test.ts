@@ -84,7 +84,7 @@ describe("decode error cases", () => {
   test("未対応の schemaVersion ならエラー", async () => {
     const code = await encodePlanForShare({
       ...emptyPlan(new Date("2026-04-22T00:00:00.000Z")),
-      schemaVersion: 999 as unknown as 1,
+      schemaVersion: 999 as unknown as 2,
     });
     const result = await decodeSharedPlan(code);
     expect(result.ok).toBe(false);

@@ -15,7 +15,7 @@ import type {
 
 function basePlan(): Plan {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     settings: {
       yearStartMonth: 1,
       planStartMonth: "2026-01",

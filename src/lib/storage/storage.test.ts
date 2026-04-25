@@ -332,6 +332,66 @@ describe("hydratePlan", () => {
   });
 });
 
+describe("hydratePlan: taxRuleSets / schemaVersion migration", () => {
+  test("schemaVersion 1 のプランは taxRuleSets: [] にマイグレーションされ schemaVersion=2 に上がる", () => {
+    const raw = {
+      schemaVersion: 1,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.schemaVersion).toBe(2);
+    expect(plan?.taxRuleSets).toEqual([]);
+  });
+
+  test("schemaVersion 2 では taxRuleSets が復元される", () => {
+    const raw = {
+      schemaVersion: 2,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      taxRuleSets: [
+        {
+          id: "rs-2026",
+          label: "2026",
+          effectiveFromYear: 2026,
+          socialInsurance: {
+            rates: { health: 0.05, pension: 0.09, employment: 0.006, longTermCare: 0.009 },
+            annualCaps: { health: 16_680_000, pension: 7_800_000 },
+            longTermCareStartAge: 40,
+          },
+          employmentIncomeDeduction: [{ upTo: null, kind: "flat", amount: 1_950_000 }],
+          incomeTax: {
+            brackets: [{ upTo: null, rate: 0.45, subtract: 4_796_000 }],
+            basicDeduction: 480_000,
+            spouseDeduction: 380_000,
+            dependentDeduction: 380_000,
+            reconstructionSurtaxMultiplier: 1.021,
+          },
+          residentTax: {
+            basicDeduction: 430_000,
+            spouseDeduction: 330_000,
+            dependentDeduction: 330_000,
+            incomeRate: 0.1,
+            perCapita: 5_000,
+          },
+        },
+      ],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.taxRuleSets).toHaveLength(1);
+    expect(plan?.taxRuleSets?.[0]?.id).toBe("rs-2026");
+    expect(plan?.taxRuleSets?.[0]?.socialInsurance.rates.health).toBe(0.05);
+  });
+
+  test("不正な ruleSet (必須フィールド欠損) は除外される", () => {
+    const raw = {
+      schemaVersion: 2,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      taxRuleSets: [{ id: "broken", label: "no-effective-year" }, null, "string"],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.taxRuleSets).toEqual([]);
+  });
+});
+
 describe("hydrateRegistry", () => {
   test("plans が空配列なら null", () => {
     expect(hydrateRegistry({ plans: [], currentPlanId: "x" })).toBeNull();
@@ -365,7 +425,7 @@ describe("hydrateRegistry", () => {
 describe("export/import round-trip", () => {
   test("exportPlanJson → parsePlanJson で同じ内容に戻る", () => {
     const plan = {
-      schemaVersion: 1 as const,
+      schemaVersion: 2 as const,
       settings: { yearStartMonth: 1 as const, planStartMonth: "2026-01" as const, planEndMonth: "2026-12" as const },
       persons: [],
       accounts: [{ id: "a1", label: "現金", kind: "cash" as const }],
@@ -376,6 +436,7 @@ describe("export/import round-trip", () => {
       transfers: [],
       categories: [],
       grossSalaries: [],
+      taxRuleSets: [],
     };
     const json = exportPlanJson(plan);
     const parsed = parsePlanJson(json);
@@ -422,7 +483,7 @@ describe("bootstrap", () => {
     });
     const { registry, plans } = bootstrap();
     expect(registry.plans).toHaveLength(1);
-    expect(plans.p1?.schemaVersion).toBe(1);
+    expect(plans.p1?.schemaVersion).toBe(2);
   });
 
   test("registry に載っていても plan 本体が無いメタは取り除かれる", () => {

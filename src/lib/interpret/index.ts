@@ -17,7 +17,12 @@ import {
   resolvePlan,
 } from "@/lib/dsl/resolve";
 import type { Account, FlowRaise, MonthlyEntry, Person, Plan, Ulid, YearMonth } from "@/lib/dsl/types";
-import { computeAnnualIncomeTax, computeAnnualResidentTax, computeAnnualSocialInsurance } from "@/lib/tax";
+import {
+  computeAnnualIncomeTax,
+  computeAnnualResidentTax,
+  computeAnnualSocialInsurance,
+  resolveTaxRuleSet,
+} from "@/lib/tax";
 
 function withinPlan(month: YearMonth, start: YearMonth, end: YearMonth): boolean {
   return compareYearMonth(month, start) >= 0 && compareYearMonth(month, end) <= 0;
@@ -273,20 +278,21 @@ function emitGrossSalaryEntries(
       const cacheKey = salaryYearKey(salary.id, year);
       let yearTax = annualTaxCache.get(cacheKey);
       if (!yearTax) {
+        const ruleSet = resolveTaxRuleSet(plan.taxRuleSets ?? [], year);
         const siAge = ageYearsAt(person, `${year}-01` as YearMonth);
-        const si = computeAnnualSocialInsurance(annualGross, siAge).total;
-        const it = computeAnnualIncomeTax({
-          annualGross,
-          socialInsurance: si,
-          dependents,
-          hasSpouseDeduction,
-        });
+        const si = computeAnnualSocialInsurance(annualGross, siAge, ruleSet).total;
+        const it = computeAnnualIncomeTax(
+          { annualGross, socialInsurance: si, dependents, hasSpouseDeduction },
+          ruleSet,
+        );
         yearTax = { socialInsurance: si, incomeTax: it };
         annualTaxCache.set(cacheKey, yearTax);
       }
 
       // 住民税は前年所得ベース。前年が計画範囲内なら実所得、計画開始年なら person.previousYearIncome、
       // さらに古ければ 0。
+      // 税制は支払年 (= 課税年) のルールで統一する。前年所得を用いる給与所得控除や社保も
+      // 同じルールで計算しており、年度切替直後はわずかに簡略化されている。
       let annualResident = annualResidentCache.get(cacheKey);
       if (annualResident === undefined) {
         const prevYear = year - 1;
@@ -299,14 +305,13 @@ function emitGrossSalaryEntries(
         if (prevGross <= 0) {
           annualResident = 0;
         } else {
+          const ruleSet = resolveTaxRuleSet(plan.taxRuleSets ?? [], year);
           const prevAge = ageYearsAt(person, `${prevYear}-01` as YearMonth);
-          const prevSi = computeAnnualSocialInsurance(prevGross, prevAge).total;
-          annualResident = computeAnnualResidentTax({
-            annualGross: prevGross,
-            socialInsurance: prevSi,
-            dependents,
-            hasSpouseDeduction,
-          });
+          const prevSi = computeAnnualSocialInsurance(prevGross, prevAge, ruleSet).total;
+          annualResident = computeAnnualResidentTax(
+            { annualGross: prevGross, socialInsurance: prevSi, dependents, hasSpouseDeduction },
+            ruleSet,
+          );
         }
         annualResidentCache.set(cacheKey, annualResident);
       }

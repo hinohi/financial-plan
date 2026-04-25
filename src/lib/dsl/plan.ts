@@ -5,7 +5,7 @@ export function emptyPlan(now: Date = new Date()): Plan {
   const start = toYearMonth(now.getFullYear(), now.getMonth() + 1);
   const end = addMonths(currentYearMonth(now), 12 * 50);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     settings: {
       yearStartMonth: 1,
       planStartMonth: start,
@@ -20,5 +20,6 @@ export function emptyPlan(now: Date = new Date()): Plan {
     transfers: [],
     categories: [],
     grossSalaries: [],
+    taxRuleSets: [],
   };
 }

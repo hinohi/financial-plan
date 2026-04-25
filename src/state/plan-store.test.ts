@@ -5,7 +5,7 @@ import { appReducer, HISTORY_LIMIT, planReducer } from "./plan-store";
 
 function seed(): Plan {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     settings: {
       yearStartMonth: 1,
       planStartMonth: "2026-01",
@@ -64,7 +64,7 @@ describe("planReducer", () => {
   test("plan/replace はプランを丸ごと差し替える", () => {
     const state = seed();
     const next: Plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       settings: { yearStartMonth: 4, planStartMonth: "2027-04", planEndMonth: "2030-03" },
       persons: [],
       accounts: [],
@@ -685,6 +685,105 @@ describe("appReducer: undo/redo", () => {
     });
     const s2 = appReducer(s1, { type: "registry/rename", id: "plan1", name: "改名", now: NOW });
     expect(s2.history).toBe(s1.history);
+  });
+
+  test("tax-rule-set/add は taxRuleSets に追加される (undefined でも空配列扱い)", () => {
+    const state = seed();
+    const ruleSet = {
+      id: "rs-2026",
+      label: "2026",
+      effectiveFromYear: 2026,
+      socialInsurance: {
+        rates: { health: 0.05, pension: 0.09, employment: 0.006, longTermCare: 0.009 },
+        annualCaps: { health: 16_680_000, pension: 7_800_000 },
+        longTermCareStartAge: 40,
+      },
+      employmentIncomeDeduction: [{ upTo: null, kind: "flat" as const, amount: 1_950_000 }],
+      incomeTax: {
+        brackets: [{ upTo: null, rate: 0.45, subtract: 4_796_000 }],
+        basicDeduction: 480_000,
+        spouseDeduction: 380_000,
+        dependentDeduction: 380_000,
+        reconstructionSurtaxMultiplier: 1.021,
+      },
+      residentTax: {
+        basicDeduction: 430_000,
+        spouseDeduction: 330_000,
+        dependentDeduction: 330_000,
+        incomeRate: 0.1,
+        perCapita: 5_000,
+      },
+    };
+    const next = planReducer(state, { type: "tax-rule-set/add", ruleSet });
+    expect(next.taxRuleSets).toHaveLength(1);
+    expect(next.taxRuleSets?.[0]?.id).toBe("rs-2026");
+  });
+
+  test("tax-rule-set/update は patch を id 一致行にマージする", () => {
+    const ruleSet = {
+      id: "rs-2026",
+      label: "2026",
+      effectiveFromYear: 2026,
+      socialInsurance: {
+        rates: { health: 0.05, pension: 0.09, employment: 0.006, longTermCare: 0.009 },
+        annualCaps: { health: 16_680_000, pension: 7_800_000 },
+        longTermCareStartAge: 40,
+      },
+      employmentIncomeDeduction: [{ upTo: null, kind: "flat" as const, amount: 1_950_000 }],
+      incomeTax: {
+        brackets: [{ upTo: null, rate: 0.45, subtract: 4_796_000 }],
+        basicDeduction: 480_000,
+        spouseDeduction: 380_000,
+        dependentDeduction: 380_000,
+        reconstructionSurtaxMultiplier: 1.021,
+      },
+      residentTax: {
+        basicDeduction: 430_000,
+        spouseDeduction: 330_000,
+        dependentDeduction: 330_000,
+        incomeRate: 0.1,
+        perCapita: 5_000,
+      },
+    };
+    const state: Plan = { ...seed(), taxRuleSets: [ruleSet] };
+    const next = planReducer(state, {
+      type: "tax-rule-set/update",
+      id: "rs-2026",
+      patch: { label: "2026 改", effectiveFromYear: 2027 },
+    });
+    expect(next.taxRuleSets?.[0]?.label).toBe("2026 改");
+    expect(next.taxRuleSets?.[0]?.effectiveFromYear).toBe(2027);
+  });
+
+  test("tax-rule-set/remove は id 一致行を削除する", () => {
+    const ruleSet = {
+      id: "rs-2026",
+      label: "2026",
+      effectiveFromYear: 2026,
+      socialInsurance: {
+        rates: { health: 0.05, pension: 0.09, employment: 0.006, longTermCare: 0.009 },
+        annualCaps: { health: 16_680_000, pension: 7_800_000 },
+        longTermCareStartAge: 40,
+      },
+      employmentIncomeDeduction: [{ upTo: null, kind: "flat" as const, amount: 1_950_000 }],
+      incomeTax: {
+        brackets: [{ upTo: null, rate: 0.45, subtract: 4_796_000 }],
+        basicDeduction: 480_000,
+        spouseDeduction: 380_000,
+        dependentDeduction: 380_000,
+        reconstructionSurtaxMultiplier: 1.021,
+      },
+      residentTax: {
+        basicDeduction: 430_000,
+        spouseDeduction: 330_000,
+        dependentDeduction: 330_000,
+        incomeRate: 0.1,
+        perCapita: 5_000,
+      },
+    };
+    const state: Plan = { ...seed(), taxRuleSets: [ruleSet] };
+    const next = planReducer(state, { type: "tax-rule-set/remove", id: "rs-2026" });
+    expect(next.taxRuleSets).toEqual([]);
   });
 
   test("registry/replace-current は past に積まれる (undo で戻せる)", () => {
