@@ -146,6 +146,26 @@ for (const name of staticAssets) {
   console.log(`📎 Copied static asset: ${name}`);
 }
 
+// SSR で App を文字列化して index.html の root マーカーへ注入する。
+// これにより React ロード前後でページ構造が一致する。
+const PRERENDER_MARKER = "<!--PRERENDER:ROOT-->";
+const htmlOutputs = result.outputs.filter((o) => o.path.endsWith(".html"));
+if (htmlOutputs.length > 0) {
+  const { prerender } = await import("./src/prerender");
+  const rendered = prerender();
+  for (const out of htmlOutputs) {
+    const html = await Bun.file(out.path).text();
+    if (!html.includes(PRERENDER_MARKER)) {
+      console.warn(
+        `⚠️  ${path.relative(process.cwd(), out.path)} に ${PRERENDER_MARKER} が無いため prerender をスキップ`,
+      );
+      continue;
+    }
+    await Bun.write(out.path, html.replace(PRERENDER_MARKER, rendered));
+    console.log(`🧬 Injected prerender into ${path.relative(process.cwd(), out.path)}`);
+  }
+}
+
 const end = performance.now();
 
 const outputTable = result.outputs.map((output) => ({

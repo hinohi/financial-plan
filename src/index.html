@@ -89,7 +89,7 @@
             "name": "他の端末とデータを同期できますか？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "自動同期はありませんが、プラン全体を JSON ファイルとしてエクスポート/インポートできるため、端末間の移行や共有が可能です。"
+              "text": "自動同期はありませんが、プラン全体を符号化した共有URLをワンクリックで生成できるため、別の端末や他のユーザーに渡すだけで取り込めます。JSON ファイルとしてエクスポート/インポートする方法も利用可能です。"
             }
           },
           {
@@ -104,88 +104,10 @@
       }
     </script>
 
-    <style>
-      .prerender {
-        max-width: 72rem;
-        margin: 0 auto;
-        padding: 2rem 1.5rem;
-        font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
-        color: #1f2937;
-        line-height: 1.7;
-      }
-      .prerender h1 {
-        font-size: 1.875rem;
-        font-weight: 700;
-        margin: 0 0 0.5rem;
-      }
-      .prerender .lead {
-        color: #4b5563;
-        margin: 0 0 2rem;
-      }
-      .prerender h2 {
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin: 2rem 0 0.75rem;
-      }
-      .prerender h3 {
-        font-size: 1rem;
-        font-weight: 600;
-        margin: 1.25rem 0 0.25rem;
-      }
-      .prerender ul {
-        padding-left: 1.25rem;
-        margin: 0;
-      }
-      .prerender li {
-        margin-bottom: 0.35rem;
-      }
-    </style>
-
     <script type="module" src="./frontend.tsx" async></script>
   </head>
   <body>
-    <div id="root">
-      <main class="prerender">
-        <h1>ファイナンシャルプラン作成ツール FP</h1>
-        <p class="lead">
-          ライフプラン・家計・資産推移・キャッシュフローをブラウザ上で自由にシミュレーションできる無料ツール。教育費、住宅購入、老後資金などのライフイベントも含め、過去の実績から未来の予測までを一貫したデータモデルで管理できます。
-        </p>
-
-        <h2>主な特徴</h2>
-        <ul>
-          <li>収入・支出・一時イベント・口座間の振替をまとめて管理し、口座ごとの月次残高推移を自動で計算</li>
-          <li>月次を基準に、年次は集計ビューとして表示。1 月始まり／4 月始まりなど年の区切り月は自由に設定可能</li>
-          <li>カテゴリによる階層的な集計。細かい登録から大項目でのロールアップまで同じデータで切替可能</li>
-          <li>計算・保存はすべてブラウザ内で完結。ユーザーデータは外部サーバーに送信されません</li>
-          <li>プランは JSON でエクスポート／インポートでき、複数プランの同時管理・切替に対応</li>
-          <li>元金・金利・期間を指定したローン計算、昇給ルール、最低残高を割った時の自動振替など家計特有のルールを内包</li>
-        </ul>
-
-        <h2>こんな方におすすめ</h2>
-        <ul>
-          <li>住宅購入・教育費・老後資金を含めた長期のライフプランを自分で組み立てたい方</li>
-          <li>家計簿のその先、将来の資産推移を具体的に見通したい方</li>
-          <li>Excel や表計算で自作すると手間がかかるため、ブラウザで素早くシミュレーションを試したい方</li>
-          <li>複数シナリオ（楽観／標準／悲観）を並行して比較検討したい方</li>
-        </ul>
-
-        <h2>よくある質問</h2>
-
-        <h3>入力したデータはどこに保存されますか？</h3>
-        <p>ブラウザの localStorage に保存されます。サーバーには一切アップロードされないため、機微な家計情報も安心して入力できます。</p>
-
-        <h3>無料で使えますか？アカウント登録は必要ですか？</h3>
-        <p>完全に無料で、アカウント登録も不要です。ページを開いた瞬間から利用を開始できます。</p>
-
-        <h3>他の端末とデータを同期できますか？</h3>
-        <p>自動同期はありませんが、プラン全体を JSON ファイルとしてエクスポート／インポートできるため、端末間の移行や共有が可能です。</p>
-
-        <h3>何年先までシミュレーションできますか？</h3>
-        <p>開始年月と終了年月を自由に設定できるため、過去の実績から老後（40〜50 年先）までを同じモデルで管理できます。</p>
-
-        <p style="margin-top: 2rem; color: #6b7280;">ツールを読み込み中です。JavaScript が有効な環境では自動的にアプリが起動します。</p>
-      </main>
-    </div>
+    <div id="root"><!--PRERENDER:ROOT--></div>
     <noscript>
       <p style="padding: 1rem; font-family: system-ui, sans-serif;">
         このツールは JavaScript を有効にしてご利用ください。計算とデータ保存はすべてブラウザ内で完結します。

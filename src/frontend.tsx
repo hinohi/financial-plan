@@ -7,13 +7,16 @@
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { PlanProvider } from "@/state/plan-store";
 import { App } from "./App";
 
 const elem = document.getElementById("root");
 if (!elem) throw new Error("root element not found");
 const app = (
   <StrictMode>
-    <App />
+    <PlanProvider>
+      <App />
+    </PlanProvider>
   </StrictMode>
 );
 

@@ -384,10 +384,32 @@ function initialState(): AppState {
   return { registry: boot.registry, plan, history: emptyHistory };
 }
 
+// prerender (SSR) 用。bootstrap を呼ばず固定 ID の registry と渡された plan で初期化する。
+// ID を固定にするのは、ビルド出力の HTML を毎回同一にするため。
+const PRERENDER_PLAN_ID = "00000000-0000-4000-8000-000000000000";
+
+function prerenderInitialState(plan: Plan): AppState {
+  const meta: PlanMeta = {
+    id: PRERENDER_PLAN_ID,
+    name: "プラン",
+    createdAt: "1970-01-01T00:00:00.000Z",
+    updatedAt: "1970-01-01T00:00:00.000Z",
+  };
+  return {
+    registry: { plans: [meta], currentPlanId: meta.id },
+    plan,
+    history: emptyHistory,
+  };
+}
+
 const SHARE_IMPORT_PLAN_NAME = "共有から取り込んだプラン";
 
-export function PlanProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(appReducer, undefined, initialState);
+export function PlanProvider({ children, initialPlan }: { children: ReactNode; initialPlan?: Plan }) {
+  const [state, dispatch] = useReducer(
+    appReducer,
+    undefined,
+    initialPlan ? () => prerenderInitialState(initialPlan) : initialState,
+  );
   const [shareImportNotice, setShareImportNotice] = useState<ShareImportNotice | null>(null);
   const isFirstRender = useRef(true);
 
