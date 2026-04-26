@@ -14,7 +14,7 @@ import {
 
 function basePlan(overrides: Partial<Plan> = {}): Plan {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     settings: {
       yearStartMonth: 1,
       planStartMonth: "2026-01",
@@ -22,7 +22,6 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
     },
     persons: [],
     accounts: [{ id: "a1", label: "cash", kind: "cash" }],
-    snapshots: [],
     incomes: [],
     expenses: [],
     events: [],
@@ -53,43 +52,43 @@ describe("aggregate monthly", () => {
     ]);
   });
 
-  test("snapshot はその月の残高を上書きする", () => {
+  test("初期残高は計画開始月時点の残高として反映される", () => {
     const plan = basePlan({
       settings: {
         yearStartMonth: 1,
         planStartMonth: "2026-01",
         planEndMonth: "2026-04",
       },
+      accounts: [{ id: "a1", label: "cash", kind: "cash", initialBalance: 500 }],
       incomes: [
         {
           id: "i1",
           label: "x",
           accountId: "a1",
-          segments: [{ startMonth: "2026-01", endMonth: "2026-04", amount: 100 }],
+          segments: [{ startMonth: "2026-02", endMonth: "2026-04", amount: 100 }],
         },
       ],
-      snapshots: [{ id: "s1", accountId: "a1", month: "2026-02", balance: 500 }],
     });
     const view = aggregate(plan, interpret(plan), { period: "monthly" });
     expect(view.points.map((p) => [p.period, p.total])).toEqual([
-      ["2026-01", 100],
-      ["2026-02", 500],
-      ["2026-03", 600],
-      ["2026-04", 700],
+      ["2026-01", 500],
+      ["2026-02", 600],
+      ["2026-03", 700],
+      ["2026-04", 800],
     ]);
   });
 
   test("支出は残高を減らす", () => {
     const plan = basePlan({
+      accounts: [{ id: "a1", label: "cash", kind: "cash", initialBalance: 1000 }],
       expenses: [
         {
           id: "e1",
           label: "家賃",
           accountId: "a1",
-          segments: [{ startMonth: "2026-01", endMonth: "2026-03", amount: 50 }],
+          segments: [{ startMonth: "2026-02", endMonth: "2026-03", amount: 50 }],
         },
       ],
-      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 1000 }],
     });
     const view = aggregate(plan, interpret(plan), { period: "monthly" });
     expect(view.points.map((p) => p.total)).toEqual([1000, 950, 900]);
@@ -98,12 +97,8 @@ describe("aggregate monthly", () => {
   test("口座が複数あれば total は合算される", () => {
     const plan = basePlan({
       accounts: [
-        { id: "a1", label: "cash", kind: "cash" },
-        { id: "a2", label: "invest", kind: "investment" },
-      ],
-      snapshots: [
-        { id: "s1", accountId: "a1", month: "2026-01", balance: 100 },
-        { id: "s2", accountId: "a2", month: "2026-01", balance: 200 },
+        { id: "a1", label: "cash", kind: "cash", initialBalance: 100 },
+        { id: "a2", label: "invest", kind: "investment", initialBalance: 200 },
       ],
     });
     const view = aggregate(plan, interpret(plan), { period: "monthly" });
@@ -115,10 +110,9 @@ describe("aggregate monthly", () => {
   test("Transfer は合計残高を変えず、口座別残高のみ動かす", () => {
     const plan = basePlan({
       accounts: [
-        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a1", label: "cash", kind: "cash", initialBalance: 1000 },
         { id: "a2", label: "invest", kind: "investment" },
       ],
-      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 1000 }],
       transfers: [
         {
           id: "t1",
@@ -139,7 +133,7 @@ describe("aggregate monthly", () => {
 
   test("OneShotEvent は指定月の残高にだけ作用する", () => {
     const plan = basePlan({
-      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 1000 }],
+      accounts: [{ id: "a1", label: "cash", kind: "cash", initialBalance: 1000 }],
       events: [{ id: "ev1", label: "ボーナス", accountId: "a1", month: "2026-02", amount: 500 }],
     });
     const view = aggregate(plan, interpret(plan), { period: "monthly" });
@@ -179,16 +173,22 @@ describe("aggregate yearly", () => {
     const yearStartMonth: YearStartMonth = 4;
     const plan = basePlan({
       settings: { yearStartMonth, planStartMonth: "2026-04", planEndMonth: "2027-09" },
-      snapshots: [
-        { id: "s1", accountId: "a1", month: "2026-04", balance: 1000 },
-        { id: "s2", accountId: "a1", month: "2027-03", balance: 2000 },
-        { id: "s3", accountId: "a1", month: "2027-09", balance: 3000 },
+      accounts: [{ id: "a1", label: "cash", kind: "cash", initialBalance: 1000 }],
+      incomes: [
+        {
+          id: "i1",
+          label: "毎月積立",
+          accountId: "a1",
+          segments: [{ startMonth: "2026-05", endMonth: "2027-09", amount: 100 }],
+        },
       ],
     });
     const view = aggregate(plan, interpret(plan), { period: "yearly" });
+    // 年度末 (3月) の残高: 2026年度末 (2027-03) は initial + 11 ヶ月分 = 1000 + 1100 = 2100
+    // 2027年度 は計画終了月 9月の残高: 2100 + 6 ヶ月分 = 2700
     expect(view.points.map((p) => [p.period, p.total])).toEqual([
-      ["2026年度", 2000],
-      ["2027年度", 3000],
+      ["2026年度", 2100],
+      ["2027年度", 2700],
     ]);
   });
 });
@@ -367,8 +367,9 @@ describe("aggregateFlow", () => {
   test("投資利息は income の運用益カテゴリに計上される", () => {
     const plan = basePlan({
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
-      accounts: [{ id: "inv", label: "投資", kind: "investment", investment: { annualRate: 0.12 } }],
-      snapshots: [{ id: "s1", accountId: "inv", month: "2026-01", balance: 10000 }],
+      accounts: [
+        { id: "inv", label: "投資", kind: "investment", investment: { annualRate: 0.12 }, initialBalance: 10000 },
+      ],
     });
     const view = aggregateFlow(plan, interpret(plan), { kind: "income", period: "monthly", group: "leaf" });
     expect(view.categoryOrder).toContain(SYSTEM_INTEREST_KEY);

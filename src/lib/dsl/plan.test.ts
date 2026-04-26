@@ -6,9 +6,8 @@ import type { YearMonth } from "./types";
 describe("emptyPlan", () => {
   test("schemaVersion と空配列を持つ", () => {
     const plan = emptyPlan(new Date(2026, 3, 22));
-    expect(plan.schemaVersion).toBe(2);
+    expect(plan.schemaVersion).toBe(3);
     expect(plan.accounts).toEqual([]);
-    expect(plan.snapshots).toEqual([]);
     expect(plan.incomes).toEqual([]);
     expect(plan.expenses).toEqual([]);
   });

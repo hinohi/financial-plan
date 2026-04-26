@@ -7,8 +7,7 @@ function samplePlan(): Plan {
   return {
     ...emptyPlan(new Date("2026-04-22T00:00:00.000Z")),
     persons: [{ id: "p1", label: "自分", birthMonth: "1990-05" }],
-    accounts: [{ id: "a1", label: "現金", kind: "cash" }],
-    snapshots: [{ id: "s1", accountId: "a1", month: "2026-04", balance: 1_000_000 }],
+    accounts: [{ id: "a1", label: "現金", kind: "cash", initialBalance: 1_000_000 }],
   };
 }
 
@@ -37,25 +36,24 @@ describe("encode / decode round-trip", () => {
     expect(/^[A-Za-z0-9_-]+$/.test(body)).toBe(true);
   });
 
-  test("大きめのプランでも通る (数百エントリ)", async () => {
+  test("大きめのプランでも通る (数百カテゴリ)", async () => {
     const plan: Plan = {
       ...emptyPlan(new Date("2026-04-22T00:00:00.000Z")),
       accounts: Array.from({ length: 10 }, (_, i) => ({
         id: `acc-${i}`,
         label: `口座${i}`,
         kind: "cash" as const,
+        initialBalance: i * 10_000,
       })),
-      snapshots: Array.from({ length: 500 }, (_, i) => ({
-        id: `snap-${i}`,
-        accountId: `acc-${i % 10}`,
-        month: "2026-04" as const,
-        balance: i,
-      })),
+      categories: Array.from({ length: 500 }, (_, i) => {
+        const kind: "income" | "expense" = i % 2 === 0 ? "income" : "expense";
+        return { id: `cat-${i}`, label: `カテゴリ${i}`, kind };
+      }),
     };
     const code = await encodePlanForShare(plan);
     const decoded = await decodeSharedPlan(code);
     expect(decoded.ok).toBe(true);
-    if (decoded.ok) expect(decoded.plan.snapshots).toHaveLength(500);
+    if (decoded.ok) expect(decoded.plan.categories).toHaveLength(500);
   });
 });
 
@@ -84,7 +82,7 @@ describe("decode error cases", () => {
   test("未対応の schemaVersion ならエラー", async () => {
     const code = await encodePlanForShare({
       ...emptyPlan(new Date("2026-04-22T00:00:00.000Z")),
-      schemaVersion: 999 as unknown as 2,
+      schemaVersion: 999 as unknown as 3,
     });
     const result = await decodeSharedPlan(code);
     expect(result.ok).toBe(false);

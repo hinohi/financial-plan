@@ -12,13 +12,11 @@ import type {
   Person,
   Plan,
   PlanSettings,
-  Snapshot,
   Transfer,
   YearMonth,
   YearStartMonth,
 } from "./types";
 
-export type ResolvedSnapshot = Omit<Snapshot, "month"> & { month: YearMonth };
 export type ResolvedFlowSegment = Omit<FlowSegment, "startMonth" | "endMonth"> & {
   startMonth: YearMonth;
   endMonth?: YearMonth;
@@ -46,11 +44,10 @@ export type ResolvedPlanSettings = Omit<PlanSettings, "planStartMonth" | "planEn
 };
 export type ResolvedPlan = Omit<
   Plan,
-  "settings" | "accounts" | "snapshots" | "incomes" | "expenses" | "events" | "transfers" | "grossSalaries"
+  "settings" | "accounts" | "incomes" | "expenses" | "events" | "transfers" | "grossSalaries"
 > & {
   settings: ResolvedPlanSettings;
   accounts: ResolvedAccount[];
-  snapshots: ResolvedSnapshot[];
   incomes: ResolvedIncome[];
   expenses: ResolvedExpense[];
   events: ResolvedEvent[];
@@ -124,13 +121,6 @@ export function resolvePlan(plan: Plan): ResolvedPlan {
 
   const accounts: ResolvedAccount[] = plan.accounts.map((a) => ({ ...a }));
 
-  const snapshots: ResolvedSnapshot[] = [];
-  for (const s of plan.snapshots) {
-    const m = tryResolve(s.month, persons, yearStart);
-    if (m === null) continue;
-    snapshots.push({ ...s, month: m });
-  }
-
   const incomes: ResolvedIncome[] = plan.incomes.map((i) => ({
     ...i,
     segments: resolveSegments(i.segments, persons, yearStart),
@@ -167,7 +157,6 @@ export function resolvePlan(plan: Plan): ResolvedPlan {
     ...plan,
     settings: { ...settings, planStartMonth, planEndMonth },
     accounts,
-    snapshots,
     incomes,
     expenses,
     events,

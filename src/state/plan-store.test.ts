@@ -5,7 +5,7 @@ import { appReducer, HISTORY_LIMIT, planReducer } from "./plan-store";
 
 function seed(): Plan {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     settings: {
       yearStartMonth: 1,
       planStartMonth: "2026-01",
@@ -13,12 +13,8 @@ function seed(): Plan {
     },
     persons: [],
     accounts: [
-      { id: "a1", label: "現金", kind: "cash" },
-      { id: "a2", label: "投資", kind: "investment" },
-    ],
-    snapshots: [
-      { id: "s1", accountId: "a1", month: "2026-01", balance: 1000 },
-      { id: "s2", accountId: "a2", month: "2026-01", balance: 500 },
+      { id: "a1", label: "現金", kind: "cash", initialBalance: 1000 },
+      { id: "a2", label: "投資", kind: "investment", initialBalance: 500 },
     ],
     incomes: [
       {
@@ -64,11 +60,10 @@ describe("planReducer", () => {
   test("plan/replace はプランを丸ごと差し替える", () => {
     const state = seed();
     const next: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 4, planStartMonth: "2027-04", planEndMonth: "2030-03" },
       persons: [],
       accounts: [],
-      snapshots: [],
       incomes: [],
       expenses: [],
       events: [],
@@ -104,11 +99,10 @@ describe("planReducer", () => {
     expect(next.accounts[1]?.kind).toBe("investment");
   });
 
-  test("account/remove は口座に紐づく snapshot・income・expense・event・transfer をまとめて削除する", () => {
+  test("account/remove は口座に紐づく income・expense・event・transfer をまとめて削除する", () => {
     const state = seed();
     const next = planReducer(state, { type: "account/remove", id: "a1" });
     expect(next.accounts.map((a) => a.id)).toEqual(["a2"]);
-    expect(next.snapshots.map((s) => s.id)).toEqual(["s2"]);
     expect(next.incomes).toEqual([]);
     expect(next.expenses.map((e) => e.id)).toEqual(["e2"]);
     expect(next.events.map((e) => e.id)).toEqual(["ev2"]);
@@ -121,19 +115,15 @@ describe("planReducer", () => {
     expect(next.transfers).toEqual([]);
   });
 
-  test("snapshot/add / update / remove", () => {
-    const added = planReducer(seed(), {
-      type: "snapshot/add",
-      snapshot: { id: "s3", accountId: "a1", month: "2027-01", balance: 2000 },
+  test("account/update で initialBalance / initialBalanceNote を変更できる", () => {
+    const updated = planReducer(seed(), {
+      type: "account/update",
+      id: "a1",
+      patch: { initialBalance: 5000, initialBalanceNote: "通帳より" },
     });
-    expect(added.snapshots).toHaveLength(3);
-
-    const updated = planReducer(added, { type: "snapshot/update", id: "s3", patch: { balance: 3000 } });
-    expect(updated.snapshots.find((s) => s.id === "s3")?.balance).toBe(3000);
-
-    const removed = planReducer(updated, { type: "snapshot/remove", id: "s3" });
-    expect(removed.snapshots.find((s) => s.id === "s3")).toBeUndefined();
-    expect(removed.snapshots).toHaveLength(2);
+    const a1 = updated.accounts.find((a) => a.id === "a1");
+    expect(a1?.initialBalance).toBe(5000);
+    expect(a1?.initialBalanceNote).toBe("通帳より");
   });
 
   test("income/add / update / remove", () => {
@@ -273,22 +263,13 @@ describe("planReducer", () => {
     expect(removed.persons).toEqual([]);
   });
 
-  test("person/remove は人物を参照する snapshot/event を削除する", () => {
+  test("person/remove は人物を参照する event を削除する", () => {
     const withPerson = planReducer(seed(), {
       type: "person/add",
       person: { id: "p1", label: "自分", birthMonth: "2000-01" },
     });
     const wired: Plan = {
       ...withPerson,
-      snapshots: [
-        ...withPerson.snapshots,
-        {
-          id: "s-ref",
-          accountId: "a1",
-          month: { kind: "person-age", personId: "p1", age: 30, month: 1 },
-          balance: 999,
-        },
-      ],
       events: [
         ...withPerson.events,
         {
@@ -301,10 +282,8 @@ describe("planReducer", () => {
       ],
     };
     const next = planReducer(wired, { type: "person/remove", id: "p1" });
-    expect(next.snapshots.find((s) => s.id === "s-ref")).toBeUndefined();
     expect(next.events.find((e) => e.id === "ev-ref")).toBeUndefined();
     // 人物を参照していない分は残る
-    expect(next.snapshots.find((s) => s.id === "s1")).toBeDefined();
     expect(next.events.find((e) => e.id === "ev1")).toBeDefined();
   });
 
@@ -490,7 +469,6 @@ describe("planReducer", () => {
     };
     const next = planReducer(base, { type: "account/remove", id: "a1" });
     expect(next.accounts.find((a) => a.id === "a1")).toBeUndefined();
-    expect(next.snapshots.find((s) => s.accountId === "a1")).toBeUndefined();
     expect(next.incomes.find((i) => i.accountId === "a1")).toBeUndefined();
     expect(next.expenses.find((e) => e.accountId === "a1")).toBeUndefined();
     expect(next.events.find((e) => e.accountId === "a1")).toBeUndefined();

@@ -52,7 +52,7 @@ export function AboutCard() {
           <div>
             <CardTitle>このツールについて</CardTitle>
             <CardDescription>
-              ライフプラン・家計・資産推移・キャッシュフローをブラウザ上で自由にシミュレーションできる無料ツール。教育費、住宅購入、老後資金などのライフイベントも含め、過去の実績から未来の予測までを一貫したデータモデルで管理できます。
+              ライフプラン・家計・資産推移・キャッシュフローをブラウザ上で自由にシミュレーションできる無料ツール。教育費、住宅購入、老後資金などのライフイベントも含め、計画開始月時点の残高から未来の予測までを一貫したデータモデルで管理できます。
             </CardDescription>
           </div>
           <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="このツールについて" />
@@ -111,8 +111,7 @@ export function AboutCard() {
             <div className="grid gap-1">
               <h3 className="font-semibold">何年先までシミュレーションできますか？</h3>
               <p className="text-muted-foreground">
-                開始年月と終了年月を自由に設定できるため、過去の実績から老後（40〜50
-                年先）までを同じモデルで管理できます。
+                開始年月と終了年月を自由に設定できるため、現在から老後（40〜50 年先）までを同じモデルで管理できます。
               </p>
             </div>
           </section>

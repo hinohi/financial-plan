@@ -13,7 +13,6 @@ import {
   type ResolvedGrossSalary,
   type ResolvedLoanSpec,
   type ResolvedPlan,
-  type ResolvedSnapshot,
   resolvePlan,
 } from "@/lib/dsl/resolve";
 import type { Account, FlowRaise, MonthlyEntry, Person, Plan, Ulid, YearMonth } from "@/lib/dsl/types";
@@ -354,36 +353,6 @@ function buildStaticEntriesByMonth(plan: ResolvedPlan): Map<YearMonth, MonthlyEn
   const { planStartMonth: start, planEndMonth: end } = plan.settings;
   const tmp: MonthlyEntry[] = [];
 
-  // plan 開始より前の snapshot は「開始時点の初期残高」として planStart に平行移動する。
-  // 口座ごとに最新のもののみ採用。plan 範囲内に同月の snapshot があれば後続の push で上書きされる。
-  const preStartLatest = new Map<Ulid, ResolvedSnapshot>();
-  for (const snapshot of plan.snapshots) {
-    if (compareYearMonth(snapshot.month, start) >= 0) continue;
-    const cur = preStartLatest.get(snapshot.accountId);
-    if (!cur || compareYearMonth(snapshot.month, cur.month) > 0) {
-      preStartLatest.set(snapshot.accountId, snapshot);
-    }
-  }
-  for (const snapshot of preStartLatest.values()) {
-    tmp.push({
-      month: start,
-      accountId: snapshot.accountId,
-      sourceId: snapshot.id,
-      sourceKind: "snapshot",
-      amount: Math.trunc(snapshot.balance),
-    });
-  }
-
-  for (const snapshot of plan.snapshots) {
-    if (!withinPlan(snapshot.month, start, end)) continue;
-    tmp.push({
-      month: snapshot.month,
-      accountId: snapshot.accountId,
-      sourceId: snapshot.id,
-      sourceKind: "snapshot",
-      amount: Math.trunc(snapshot.balance),
-    });
-  }
   for (const income of plan.incomes) {
     for (const segment of income.segments) {
       emitSegment(income.accountId, income.id, "income", segment, start, end, 1, income.categoryId, tmp);
@@ -518,11 +487,7 @@ function segmentActiveOnMonth(
 
 function applyMonthEntries(balances: Record<Ulid, number>, entries: MonthlyEntry[]): void {
   for (const e of entries) {
-    if (e.sourceKind === "snapshot") {
-      balances[e.accountId] = e.amount;
-    } else {
-      balances[e.accountId] = (balances[e.accountId] ?? 0) + e.amount;
-    }
+    balances[e.accountId] = (balances[e.accountId] ?? 0) + e.amount;
   }
 }
 
@@ -531,8 +496,9 @@ export function interpret(plan: Plan): MonthlyEntry[] {
   const { planStartMonth: start, planEndMonth: end } = resolved.settings;
   const staticByMonth = buildStaticEntriesByMonth(resolved);
 
+  // 各口座は計画開始月の月初時点で initialBalance を保持し、その後はフローのみで残高を更新する。
   const balances: Record<Ulid, number> = {};
-  for (const account of resolved.accounts) balances[account.id] = 0;
+  for (const account of resolved.accounts) balances[account.id] = Math.trunc(account.initialBalance ?? 0);
 
   const entries: MonthlyEntry[] = [];
   for (const month of iterateMonths(start, end)) {

@@ -38,15 +38,11 @@ export type Account = {
   id: Ulid;
   label: string;
   kind: AccountKind;
+  /** 計画開始月時点の残高。省略時は 0。 */
+  initialBalance?: number;
+  /** 初期残高に関するメモ (出典・根拠など) */
+  initialBalanceNote?: string;
   investment?: InvestmentParams;
-};
-
-export type Snapshot = {
-  id: Ulid;
-  accountId: Ulid;
-  month: MonthExpr;
-  balance: number;
-  note?: string;
 };
 
 export type FlowRaiseKind = "fixed" | "rate";
@@ -229,11 +225,10 @@ export type TaxRuleSet = {
 };
 
 export type Plan = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   settings: PlanSettings;
   persons: Person[];
   accounts: Account[];
-  snapshots: Snapshot[];
   incomes: Income[];
   expenses: Expense[];
   events: OneShotEvent[];
@@ -249,7 +244,6 @@ export type MonthlyEntrySourceKind =
   | "expense"
   | "event"
   | "transfer"
-  | "snapshot"
   | "interest"
   | "salary_gross"
   | "social_insurance"

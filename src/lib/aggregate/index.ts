@@ -65,7 +65,7 @@ export type FlowViewData = {
   categoryOrder: string[];
 };
 
-type PerMonthPerAccount = Map<YearMonth, Map<Ulid, { snapshot?: number; flow: number }>>;
+type PerMonthPerAccount = Map<YearMonth, Map<Ulid, { flow: number }>>;
 
 function groupEntries(entries: MonthlyEntry[]): PerMonthPerAccount {
   const map: PerMonthPerAccount = new Map();
@@ -80,19 +80,16 @@ function groupEntries(entries: MonthlyEntry[]): PerMonthPerAccount {
       bucket = { flow: 0 };
       byAccount.set(e.accountId, bucket);
     }
-    if (e.sourceKind === "snapshot") {
-      bucket.snapshot = e.amount;
-    } else {
-      bucket.flow += e.amount;
-    }
+    bucket.flow += e.amount;
   }
   return map;
 }
 
 function computeMonthlyBalances(plan: ResolvedPlan, entries: MonthlyEntry[]): BalancePoint[] {
   const grouped = groupEntries(entries);
+  // 計画開始月の月初時点の残高は口座ごとの initialBalance。以降はフローを順に加算するだけ。
   const balances: Record<Ulid, number> = {};
-  for (const account of plan.accounts) balances[account.id] = 0;
+  for (const account of plan.accounts) balances[account.id] = Math.trunc(account.initialBalance ?? 0);
 
   const points: BalancePoint[] = [];
   for (const month of iterateMonths(plan.settings.planStartMonth, plan.settings.planEndMonth)) {
@@ -100,20 +97,16 @@ function computeMonthlyBalances(plan: ResolvedPlan, entries: MonthlyEntry[]): Ba
     for (const account of plan.accounts) {
       const bucket = monthBuckets?.get(account.id);
       if (!bucket) continue;
-      if (bucket.snapshot !== undefined) {
-        balances[account.id] = bucket.snapshot;
-      } else {
-        balances[account.id] = (balances[account.id] ?? 0) + bucket.flow;
-      }
+      balances[account.id] = (balances[account.id] ?? 0) + bucket.flow;
     }
     let total = 0;
-    const snapshot: Record<Ulid, number> = {};
+    const byAccount: Record<Ulid, number> = {};
     for (const account of plan.accounts) {
       const v = balances[account.id] ?? 0;
-      snapshot[account.id] = v;
+      byAccount[account.id] = v;
       total += v;
     }
-    points.push({ period: month, month, total, byAccount: snapshot });
+    points.push({ period: month, month, total, byAccount });
   }
   return points;
 }

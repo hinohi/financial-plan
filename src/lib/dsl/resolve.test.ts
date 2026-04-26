@@ -1,21 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { resolvePlan } from "./resolve";
-import type {
-  Expense,
-  GrossSalary,
-  Income,
-  LoanSpec,
-  OneShotEvent,
-  Person,
-  Plan,
-  Snapshot,
-  Transfer,
-  YearMonth,
-} from "./types";
+import type { Expense, GrossSalary, Income, LoanSpec, OneShotEvent, Person, Plan, Transfer, YearMonth } from "./types";
 
 function basePlan(): Plan {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     settings: {
       yearStartMonth: 1,
       planStartMonth: "2026-01",
@@ -23,7 +12,6 @@ function basePlan(): Plan {
     },
     persons: [],
     accounts: [],
-    snapshots: [],
     incomes: [],
     expenses: [],
     events: [],
@@ -72,14 +60,7 @@ describe("resolvePlan", () => {
     expect(resolved.settings.planEndMonth).toBe("9999-12");
   });
 
-  test("解決不能な snapshot / event は silent に除外される", () => {
-    const snapshotOk: Snapshot = { id: "s1", accountId: "a1", month: "2026-04", balance: 100 };
-    const snapshotBad: Snapshot = {
-      id: "s2",
-      accountId: "a1",
-      month: { kind: "person-age", personId: "missing", age: 30, month: 4 },
-      balance: 200,
-    };
+  test("解決不能な event は silent に除外される", () => {
     const eventOk: OneShotEvent = { id: "ev1", label: "ok", accountId: "a1", month: "2026-05", amount: 10 };
     const eventBad: OneShotEvent = {
       id: "ev2",
@@ -90,11 +71,9 @@ describe("resolvePlan", () => {
     };
     const plan: Plan = {
       ...basePlan(),
-      snapshots: [snapshotOk, snapshotBad],
       events: [eventOk, eventBad],
     };
     const resolved = resolvePlan(plan);
-    expect(resolved.snapshots.map((s) => s.id)).toEqual(["s1"]);
     expect(resolved.events.map((e) => e.id)).toEqual(["ev1"]);
   });
 

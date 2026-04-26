@@ -1,5 +1,5 @@
 import { newId } from "@/lib/dsl/id";
-import { isMonthExpr, isValidYearMonth } from "@/lib/dsl/month";
+import { compareYearMonth, isMonthExpr, isValidYearMonth } from "@/lib/dsl/month";
 import { emptyPlan } from "@/lib/dsl/plan";
 import type {
   Account,
@@ -22,11 +22,11 @@ import type {
   Plan,
   PlanSettings,
   ResidentTaxRules,
-  Snapshot,
   SocialInsuranceRules,
   TaxRuleSet,
   Transfer,
   Ulid,
+  YearMonth,
   YearStartMonth,
 } from "@/lib/dsl/types";
 
@@ -34,9 +34,9 @@ const REGISTRY_KEY = "fp.registry.v1";
 const PLAN_KEY_PREFIX = "fp.plans.";
 const LEGACY_PLAN_KEY = "fp.plan.v1";
 
-export const CURRENT_SCHEMA_VERSION = 2 as const;
+export const CURRENT_SCHEMA_VERSION = 3 as const;
 /** マイグレーション可能な過去スキーマ。読み込み時にだけ受理し、保存は常に最新版で行う */
-const SUPPORTED_SCHEMA_VERSIONS: readonly number[] = [1, 2];
+const SUPPORTED_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3];
 
 export type PlanMeta = {
   id: Ulid;
@@ -119,7 +119,12 @@ function hydrateAccounts(raw: unknown): Account[] {
   const out: Account[] = [];
   for (const v of raw) {
     if (!v || typeof v !== "object") continue;
-    const a = v as Partial<Account> & { kind?: unknown; investment?: unknown };
+    const a = v as Partial<Account> & {
+      kind?: unknown;
+      investment?: unknown;
+      initialBalance?: unknown;
+      initialBalanceNote?: unknown;
+    };
     if (typeof a.id !== "string" || typeof a.label !== "string") continue;
     if (a.kind !== "cash" && a.kind !== "investment") continue;
     const account: Account = { id: a.id, label: a.label, kind: a.kind as AccountKind };
@@ -127,26 +132,50 @@ function hydrateAccounts(raw: unknown): Account[] {
       const rate = (a.investment as { annualRate?: unknown }).annualRate;
       if (isFiniteNumber(rate)) account.investment = { annualRate: rate };
     }
+    if (isFiniteNumber(a.initialBalance)) account.initialBalance = a.initialBalance;
+    if (typeof a.initialBalanceNote === "string") account.initialBalanceNote = a.initialBalanceNote;
     out.push(account);
   }
   return out;
 }
 
-function hydrateSnapshots(raw: unknown): Snapshot[] {
-  if (!Array.isArray(raw)) return [];
-  const out: Snapshot[] = [];
-  for (const v of raw) {
+/**
+ * schemaVersion 1/2 の plan に含まれていた snapshots を口座の initialBalance にマイグレーションする。
+ * 口座ごとに、計画開始月以前で最新の (YearMonth 文字列で表現された) snapshot を採用する。
+ * 該当が無ければ、口座は initialBalance 未設定のまま (= 0) とする。
+ * person-age 参照や計画開始月以降の snapshot は廃止に伴い破棄される。
+ */
+function migrateSnapshotsToInitialBalance(
+  accounts: Account[],
+  rawSnapshots: unknown,
+  settings: PlanSettings,
+): Account[] {
+  if (!Array.isArray(rawSnapshots)) return accounts;
+  const planStart = typeof settings.planStartMonth === "string" ? (settings.planStartMonth as YearMonth) : null;
+  const latestPerAccount = new Map<Ulid, { month: YearMonth; balance: number; note?: string }>();
+  for (const v of rawSnapshots) {
     if (!v || typeof v !== "object") continue;
-    const s = v as Partial<Snapshot> & { month?: unknown; note?: unknown };
-    if (typeof s.id !== "string" || typeof s.accountId !== "string") continue;
+    const s = v as { id?: unknown; accountId?: unknown; month?: unknown; balance?: unknown; note?: unknown };
+    if (typeof s.accountId !== "string") continue;
     if (!isFiniteNumber(s.balance)) continue;
-    const month = hydrateMonthExpr(s.month);
-    if (!month) continue;
-    const snapshot: Snapshot = { id: s.id, accountId: s.accountId, month, balance: s.balance };
-    if (typeof s.note === "string") snapshot.note = s.note;
-    out.push(snapshot);
+    if (typeof s.month !== "string" || !isValidYearMonth(s.month)) continue;
+    const month = s.month as YearMonth;
+    if (planStart && compareYearMonth(month, planStart) > 0) continue;
+    const cur = latestPerAccount.get(s.accountId);
+    if (!cur || compareYearMonth(month, cur.month) > 0) {
+      const note = typeof s.note === "string" ? s.note : undefined;
+      latestPerAccount.set(s.accountId, { month, balance: s.balance, note });
+    }
   }
-  return out;
+  if (latestPerAccount.size === 0) return accounts;
+  return accounts.map((account) => {
+    if (account.initialBalance !== undefined) return account;
+    const picked = latestPerAccount.get(account.id);
+    if (!picked) return account;
+    const next: Account = { ...account, initialBalance: picked.balance };
+    if (picked.note) next.initialBalanceNote = picked.note;
+    return next;
+  });
 }
 
 function hydrateFlowRaise(raw: unknown): FlowRaise | undefined {
@@ -472,17 +501,22 @@ function hydrateTaxRuleSets(raw: unknown): TaxRuleSet[] {
 export function hydratePlan(raw: unknown): Plan | null {
   if (!raw || typeof raw !== "object") return null;
   const p = raw as Partial<Plan> & Record<string, unknown>;
-  if (p.schemaVersion !== undefined && !SUPPORTED_SCHEMA_VERSIONS.includes(p.schemaVersion as number)) return null;
+  const inputVersion = p.schemaVersion as number | undefined;
+  if (inputVersion !== undefined && !SUPPORTED_SCHEMA_VERSIONS.includes(inputVersion)) return null;
   const settings = hydrateSettings(p.settings);
   if (!settings) return null;
-  // schemaVersion 1 のプランには taxRuleSets が無いので空配列にマイグレーションする
-  const taxRuleSets = p.schemaVersion === CURRENT_SCHEMA_VERSION ? hydrateTaxRuleSets(p.taxRuleSets) : [];
+  // schemaVersion 1 のプランには taxRuleSets が無いので空配列にマイグレーションする (v2 以上は復元)
+  const taxRuleSets = inputVersion === undefined || inputVersion < 2 ? [] : hydrateTaxRuleSets(p.taxRuleSets);
+  let accounts = hydrateAccounts(p.accounts);
+  // 旧スキーマ (v1/v2) の snapshots は口座の initialBalance に変換する
+  if (inputVersion === undefined || inputVersion < 3) {
+    accounts = migrateSnapshotsToInitialBalance(accounts, p.snapshots, settings);
+  }
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     settings,
     persons: hydratePersons(p.persons),
-    accounts: hydrateAccounts(p.accounts),
-    snapshots: hydrateSnapshots(p.snapshots),
+    accounts,
     incomes: hydrateIncomes(p.incomes),
     expenses: hydrateExpenses(p.expenses),
     events: hydrateEvents(p.events),

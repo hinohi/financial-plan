@@ -23,7 +23,6 @@ import type {
   Person,
   Plan,
   PlanSettings,
-  Snapshot,
   TaxRuleSet,
   Transfer,
   Ulid,
@@ -49,9 +48,6 @@ export type PlanAction =
   | { type: "account/add"; account: Account }
   | { type: "account/update"; id: Ulid; patch: Partial<Omit<Account, "id">> }
   | { type: "account/remove"; id: Ulid }
-  | { type: "snapshot/add"; snapshot: Snapshot }
-  | { type: "snapshot/update"; id: Ulid; patch: Partial<Omit<Snapshot, "id">> }
-  | { type: "snapshot/remove"; id: Ulid }
   | { type: "income/add"; income: Income }
   | { type: "income/update"; id: Ulid; patch: Partial<Omit<Income, "id">> }
   | { type: "income/remove"; id: Ulid }
@@ -122,7 +118,6 @@ function cascadePersonRemoval(state: Plan, personId: Ulid): Plan {
   const remainingPersons = removeItem(state.persons, personId);
   const yearStart = state.settings.yearStartMonth;
 
-  const snapshots = state.snapshots.filter((s) => !exprRefsPerson(s.month, personId));
   const incomes = state.incomes.filter((i) => !i.segments.some((seg) => segmentRefsPerson(seg, personId)));
   const expenses = state.expenses.filter(
     (e) => !e.segments.some((seg) => segmentRefsPerson(seg, personId)) && !loanRefsPerson(e.loan, personId),
@@ -141,7 +136,6 @@ function cascadePersonRemoval(state: Plan, personId: Ulid): Plan {
     ...state,
     settings,
     persons: remainingPersons,
-    snapshots,
     incomes,
     expenses,
     events,
@@ -164,19 +158,12 @@ export function planReducer(state: Plan, action: PlanAction): Plan {
       return {
         ...state,
         accounts: removeItem(state.accounts, action.id),
-        snapshots: state.snapshots.filter((s) => s.accountId !== action.id),
         incomes: state.incomes.filter((i) => i.accountId !== action.id),
         expenses: state.expenses.filter((e) => e.accountId !== action.id),
         events: state.events.filter((e) => e.accountId !== action.id),
         transfers: state.transfers.filter((t) => t.fromAccountId !== action.id && t.toAccountId !== action.id),
         grossSalaries: state.grossSalaries.filter((s) => s.accountId !== action.id),
       };
-    case "snapshot/add":
-      return { ...state, snapshots: [...state.snapshots, action.snapshot] };
-    case "snapshot/update":
-      return { ...state, snapshots: updateItem(state.snapshots, action.id, action.patch) };
-    case "snapshot/remove":
-      return { ...state, snapshots: removeItem(state.snapshots, action.id) };
     case "income/add":
       return { ...state, incomes: [...state.incomes, action.income] };
     case "income/update":

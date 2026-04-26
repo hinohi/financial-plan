@@ -4,13 +4,16 @@ import { SortableList } from "@/components/sortable-list";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommittedInput } from "@/components/ui/committed-input";
+import { CommittedTextarea } from "@/components/ui/committed-textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NumericCommittedInput } from "@/components/ui/numeric-committed-input";
 import { PercentCommittedInput } from "@/components/ui/percent-committed-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCollapse } from "@/hooks/use-collapse";
 import { newId } from "@/lib/dsl/id";
 import { ACCOUNT_KIND_LABEL, ACCOUNT_KINDS, type Account, type AccountKind } from "@/lib/dsl/types";
+import { formatYen } from "@/lib/format";
 import { type PlanAction, usePlan } from "@/state/plan-store";
 
 export function AccountsCard() {
@@ -34,7 +37,9 @@ export function AccountsCard() {
         <div className="flex items-start justify-between gap-2">
           <div>
             <CardTitle>口座</CardTitle>
-            <CardDescription>すべてのフローはここを通る。投資口座は年利から運用益が自動計算される</CardDescription>
+            <CardDescription>
+              すべてのフローはここを通る。計画開始月時点の残高 (初期残高) を口座ごとに設定できる
+            </CardDescription>
           </div>
           <CollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} label="口座" />
         </div>
@@ -121,10 +126,14 @@ export function AccountsCard() {
 }
 
 function summaryForAccount(account: Account): string {
+  const parts: string[] = [];
   if (account.kind === "investment" && account.investment) {
-    return ` / 年利 ${(account.investment.annualRate * 100).toFixed(2)}%`;
+    parts.push(`年利 ${(account.investment.annualRate * 100).toFixed(2)}%`);
   }
-  return "";
+  if (account.initialBalance !== undefined && account.initialBalance !== 0) {
+    parts.push(`初期残高 ${formatYen(account.initialBalance)}`);
+  }
+  return parts.length === 0 ? "" : ` / ${parts.join(" / ")}`;
 }
 
 type AccountEditorProps = {
@@ -167,10 +176,49 @@ const AccountEditor = memo(function AccountEditor({ account, dispatch }: Account
           </Select>
         </div>
       </div>
+      <InitialBalanceEditor account={account} dispatch={dispatch} />
       <AccountParamsEditor account={account} />
     </div>
   );
 });
+
+function InitialBalanceEditor({ account, dispatch }: AccountEditorProps) {
+  return (
+    <div className="grid gap-3 rounded-md border border-dashed bg-muted/10 p-4">
+      <div className="grid gap-1.5">
+        <Label htmlFor={`acc-${account.id}-initial`}>初期残高 (円)</Label>
+        <NumericCommittedInput
+          id={`acc-${account.id}-initial`}
+          value={account.initialBalance ?? 0}
+          onCommit={(v) => {
+            const n = Number(v);
+            const next = Number.isFinite(n) && n !== 0 ? n : undefined;
+            dispatch({ type: "account/update", id: account.id, patch: { initialBalance: next } });
+          }}
+        />
+        <p className="text-xs text-muted-foreground">計画開始月の月初時点の残高。空欄または 0 で残高なし扱い</p>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`acc-${account.id}-initial-note`} className="text-xs text-muted-foreground">
+          メモ (任意)
+        </Label>
+        <CommittedTextarea
+          id={`acc-${account.id}-initial-note`}
+          placeholder="出典・根拠など"
+          className="min-h-14 text-sm"
+          value={account.initialBalanceNote ?? ""}
+          onCommit={(v) =>
+            dispatch({
+              type: "account/update",
+              id: account.id,
+              patch: { initialBalanceNote: v.trim() === "" ? undefined : v },
+            })
+          }
+        />
+      </div>
+    </div>
+  );
+}
 
 function AccountParamsEditor({ account }: { account: Account }) {
   if (account.kind === "investment") return <InvestmentEditor account={account} />;

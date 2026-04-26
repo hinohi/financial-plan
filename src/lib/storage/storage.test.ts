@@ -77,10 +77,9 @@ describe("hydratePlan", () => {
 
   test("完全な Plan はそのまま通る", () => {
     const raw = {
-      schemaVersion: 1,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
       accounts: [],
-      snapshots: [],
       incomes: [],
       expenses: [],
       events: [{ id: "ev1", label: "x", accountId: "a1", month: "2026-06", amount: 100 }],
@@ -219,19 +218,61 @@ describe("hydratePlan", () => {
     expect(plan?.accounts[2]?.investment).toBeUndefined();
   });
 
-  test("snapshot.balance が非数値なら除外、note は保持", () => {
+  test("旧スキーマの snapshot は口座ごとの最新値を initialBalance にマイグレートする", () => {
     const raw = {
       schemaVersion: 1,
-      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      settings: { yearStartMonth: 1, planStartMonth: "2026-04", planEndMonth: "2026-12" },
+      accounts: [
+        { id: "a1", label: "現金", kind: "cash" },
+        { id: "a2", label: "投資", kind: "cash" },
+      ],
+      // a1: 計画開始月 (2026-04) 以前の最新は 2026-03 の 200。2027-01 は範囲外で破棄。
+      // a2: person-age と無効値は破棄、残った 2026-01=300 を採用。
       snapshots: [
-        { id: "s1", accountId: "a1", month: "2026-03", balance: 100, note: "初期" },
-        { id: "s2", accountId: "a1", month: "2026-04", balance: "bad" },
-        { id: "s3", accountId: "a1", month: "bad", balance: 100 },
+        { id: "s1", accountId: "a1", month: "2025-12", balance: 100, note: "古い" },
+        { id: "s2", accountId: "a1", month: "2026-03", balance: 200, note: "直近" },
+        { id: "s3", accountId: "a1", month: "2027-01", balance: 999 },
+        { id: "s4", accountId: "a2", month: "2026-01", balance: 300 },
+        {
+          id: "s5",
+          accountId: "a2",
+          month: { kind: "person-age", personId: "missing", age: 30, month: 1 },
+          balance: 9999,
+        },
+        { id: "s6", accountId: "a2", month: "bad-format", balance: 9999 },
       ],
     };
     const plan = hydratePlan(raw);
-    expect(plan?.snapshots).toHaveLength(1);
-    expect(plan?.snapshots[0]?.note).toBe("初期");
+    expect(plan?.accounts.find((a) => a.id === "a1")).toEqual({
+      id: "a1",
+      label: "現金",
+      kind: "cash",
+      initialBalance: 200,
+      initialBalanceNote: "直近",
+    });
+    expect(plan?.accounts.find((a) => a.id === "a2")).toEqual({
+      id: "a2",
+      label: "投資",
+      kind: "cash",
+      initialBalance: 300,
+    });
+  });
+
+  test("schemaVersion 3 の Plan は accounts.initialBalance / initialBalanceNote をそのまま読める", () => {
+    const raw = {
+      schemaVersion: 3,
+      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
+      accounts: [
+        { id: "a1", label: "現金", kind: "cash", initialBalance: 1000, initialBalanceNote: "出典" },
+        { id: "a2", label: "投資", kind: "investment", initialBalance: 0 },
+        { id: "a3", label: "予備", kind: "cash" },
+      ],
+    };
+    const plan = hydratePlan(raw);
+    expect(plan?.accounts[0]?.initialBalance).toBe(1000);
+    expect(plan?.accounts[0]?.initialBalanceNote).toBe("出典");
+    expect(plan?.accounts[1]?.initialBalance).toBe(0);
+    expect(plan?.accounts[2]?.initialBalance).toBeUndefined();
   });
 
   test("flow segment の startMonth / amount が必須、raise の不正値は落とす", () => {
@@ -333,13 +374,13 @@ describe("hydratePlan", () => {
 });
 
 describe("hydratePlan: taxRuleSets / schemaVersion migration", () => {
-  test("schemaVersion 1 のプランは taxRuleSets: [] にマイグレーションされ schemaVersion=2 に上がる", () => {
+  test("schemaVersion 1 のプランは taxRuleSets: [] にマイグレーションされ schemaVersion=3 に上がる", () => {
     const raw = {
       schemaVersion: 1,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
     };
     const plan = hydratePlan(raw);
-    expect(plan?.schemaVersion).toBe(2);
+    expect(plan?.schemaVersion).toBe(3);
     expect(plan?.taxRuleSets).toEqual([]);
   });
 
@@ -383,7 +424,7 @@ describe("hydratePlan: taxRuleSets / schemaVersion migration", () => {
 
   test("不正な ruleSet (必須フィールド欠損) は除外される", () => {
     const raw = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
       taxRuleSets: [{ id: "broken", label: "no-effective-year" }, null, "string"],
     };
@@ -425,11 +466,10 @@ describe("hydrateRegistry", () => {
 describe("export/import round-trip", () => {
   test("exportPlanJson → parsePlanJson で同じ内容に戻る", () => {
     const plan = {
-      schemaVersion: 2 as const,
+      schemaVersion: 3 as const,
       settings: { yearStartMonth: 1 as const, planStartMonth: "2026-01" as const, planEndMonth: "2026-12" as const },
       persons: [],
-      accounts: [{ id: "a1", label: "現金", kind: "cash" as const }],
-      snapshots: [],
+      accounts: [{ id: "a1", label: "現金", kind: "cash" as const, initialBalance: 1000 }],
       incomes: [],
       expenses: [],
       events: [],
@@ -483,7 +523,7 @@ describe("bootstrap", () => {
     });
     const { registry, plans } = bootstrap();
     expect(registry.plans).toHaveLength(1);
-    expect(plans.p1?.schemaVersion).toBe(2);
+    expect(plans.p1?.schemaVersion).toBe(3);
   });
 
   test("registry に載っていても plan 本体が無いメタは取り除かれる", () => {

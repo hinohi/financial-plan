@@ -4,7 +4,7 @@ import { computeSegmentAmount, interpret, loanMonthlyPayment, monthlyCompoundRat
 
 function basePlan(overrides: Partial<Plan> = {}): Plan {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     settings: {
       yearStartMonth: 1,
       planStartMonth: "2026-01",
@@ -12,7 +12,6 @@ function basePlan(overrides: Partial<Plan> = {}): Plan {
     },
     persons: [],
     accounts: [{ id: "a1", label: "cash", kind: "cash" }],
-    snapshots: [],
     incomes: [],
     expenses: [],
     events: [],
@@ -30,77 +29,11 @@ describe("interpret", () => {
     expect(interpret(plan)).toEqual([]);
   });
 
-  test("計画期間内の snapshot は sourceKind=snapshot として出力される", () => {
+  test("account.initialBalance はエントリには現れない (口座の初期残高として内部状態に反映される)", () => {
     const plan = basePlan({
-      snapshots: [{ id: "s1", accountId: "a1", month: "2026-03", balance: 1000 }],
-    });
-    expect(interpret(plan)).toEqual([
-      { month: "2026-03", accountId: "a1", sourceId: "s1", sourceKind: "snapshot", amount: 1000 },
-    ]);
-  });
-
-  test("計画期間より後の snapshot は出力されない", () => {
-    const plan = basePlan({
-      snapshots: [{ id: "s-after", accountId: "a1", month: "2027-01", balance: 500 }],
+      accounts: [{ id: "a1", label: "cash", kind: "cash", initialBalance: 1000 }],
     });
     expect(interpret(plan)).toEqual([]);
-  });
-
-  test("計画期間より前の snapshot は planStart の初期残高として採用される", () => {
-    const plan = basePlan({
-      snapshots: [{ id: "s-before", accountId: "a1", month: "2025-12", balance: 500 }],
-    });
-    expect(interpret(plan)).toEqual([
-      { month: "2026-01", accountId: "a1", sourceId: "s-before", sourceKind: "snapshot", amount: 500 },
-    ]);
-  });
-
-  test("計画期間より前の snapshot が複数あっても口座ごとに最新のみ採用される", () => {
-    const plan = basePlan({
-      accounts: [
-        { id: "a1", label: "cash", kind: "cash" },
-        { id: "a2", label: "inv", kind: "cash" },
-      ],
-      snapshots: [
-        { id: "s-old", accountId: "a1", month: "2025-01", balance: 100 },
-        { id: "s-new", accountId: "a1", month: "2025-12", balance: 500 },
-        { id: "s-other", accountId: "a2", month: "2025-06", balance: 200 },
-      ],
-    });
-    const entries = interpret(plan);
-    // 口座 a1 は最新 (2025-12) のみ、a2 は単独の 2025-06 を planStart に注入
-    expect(entries).toHaveLength(2);
-    expect(entries.find((e) => e.accountId === "a1")).toEqual({
-      month: "2026-01",
-      accountId: "a1",
-      sourceId: "s-new",
-      sourceKind: "snapshot",
-      amount: 500,
-    });
-    expect(entries.find((e) => e.accountId === "a2")).toEqual({
-      month: "2026-01",
-      accountId: "a2",
-      sourceId: "s-other",
-      sourceKind: "snapshot",
-      amount: 200,
-    });
-  });
-
-  test("plan 範囲内に同月の snapshot があればそちらが優先される", () => {
-    const plan = basePlan({
-      snapshots: [
-        { id: "s-pre", accountId: "a1", month: "2025-12", balance: 100 },
-        { id: "s-in", accountId: "a1", month: "2026-01", balance: 999 },
-      ],
-    });
-    const entries = interpret(plan);
-    // 2026-01 月の最終 balance (groupEntries で最後に勝つ) は 999
-    // interpret が返すのは entry 列。両方含まれるが、残高合算では 999 が採用される
-    const jan = entries.filter((e) => e.month === "2026-01");
-    expect(jan.length).toBeGreaterThanOrEqual(1);
-    // 最後に push された in-range snapshot が後方に来る
-    expect(jan.at(-1)?.sourceId).toBe("s-in");
-    expect(jan.at(-1)?.amount).toBe(999);
   });
 
   test("income segment を月ごとに展開する", () => {
@@ -443,11 +376,10 @@ describe("interpret", () => {
   test("Transfer の minFromBalance は出金元の月初残高が上限を割らないよう部分的に移動する", () => {
     const plan = basePlan({
       accounts: [
-        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a1", label: "cash", kind: "cash", initialBalance: 1_050_000 },
         { id: "a2", label: "invest", kind: "investment" },
       ],
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-04" },
-      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 1_050_000 }],
       transfers: [
         {
           id: "t1",
@@ -475,11 +407,10 @@ describe("interpret", () => {
   test("Transfer の minFromBalance=0 は「残高がマイナスになりそうなら止める」動作になる", () => {
     const plan = basePlan({
       accounts: [
-        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a1", label: "cash", kind: "cash", initialBalance: 150 },
         { id: "a2", label: "invest", kind: "investment" },
       ],
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
-      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 150 }],
       transfers: [
         {
           id: "t1",
@@ -492,21 +423,21 @@ describe("interpret", () => {
       ],
     });
     const entries = interpret(plan).filter((e) => e.sourceKind === "transfer" && e.accountId === "a1");
-    // 移動額の判定は「月初残高」基準 (同月 snapshot は月末に反映) で進む
+    // 移動額の判定は「月初残高」基準で進む。
+    // 2026-01 月初: 150 → 100 移動可能、2026-02 月初: 50 → 50 のみ、2026-03 月初: 0 → 0
     expect(entries.map((e) => [e.month, e.amount])).toEqual([
-      ["2026-02", -100],
-      ["2026-03", -50],
+      ["2026-01", -100],
+      ["2026-02", -50],
     ]);
   });
 
   test("Transfer の minFromBalance 未指定なら残高に関わらず希望額を移動 (既存挙動)", () => {
     const plan = basePlan({
       accounts: [
-        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a1", label: "cash", kind: "cash", initialBalance: 10 },
         { id: "a2", label: "invest", kind: "investment" },
       ],
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
-      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 10 }],
       transfers: [
         {
           id: "t1",
@@ -524,14 +455,10 @@ describe("interpret", () => {
   test("Transfer の minToBalance は入金先の月初残高が下限を下回る分だけ補充する", () => {
     const plan = basePlan({
       accounts: [
-        { id: "from", label: "invest", kind: "cash" },
-        { id: "to", label: "cash", kind: "cash" },
+        { id: "from", label: "invest", kind: "cash", initialBalance: 10_000_000 },
+        { id: "to", label: "cash", kind: "cash", initialBalance: 50_000 },
       ],
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-04" },
-      snapshots: [
-        { id: "sf", accountId: "from", month: "2026-01", balance: 10_000_000 },
-        { id: "st", accountId: "to", month: "2026-01", balance: 50_000 },
-      ],
       transfers: [
         {
           id: "t1",
@@ -559,14 +486,10 @@ describe("interpret", () => {
   test("Transfer の minToBalance 指定時、segment.amount は 1 回あたりの補充上限として機能する", () => {
     const plan = basePlan({
       accounts: [
-        { id: "from", label: "invest", kind: "cash" },
-        { id: "to", label: "cash", kind: "cash" },
+        { id: "from", label: "invest", kind: "cash", initialBalance: 10_000_000 },
+        { id: "to", label: "cash", kind: "cash", initialBalance: 50_000 },
       ],
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
-      snapshots: [
-        { id: "sf", accountId: "from", month: "2026-01", balance: 10_000_000 },
-        { id: "st", accountId: "to", month: "2026-01", balance: 50_000 },
-      ],
       transfers: [
         {
           id: "t1",
@@ -590,14 +513,10 @@ describe("interpret", () => {
   test("Transfer の minToBalance 指定時、入金先が下限以上の月は振替しない", () => {
     const plan = basePlan({
       accounts: [
-        { id: "from", label: "invest", kind: "cash" },
-        { id: "to", label: "cash", kind: "cash" },
+        { id: "from", label: "invest", kind: "cash", initialBalance: 10_000_000 },
+        { id: "to", label: "cash", kind: "cash", initialBalance: 200_000 },
       ],
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
-      snapshots: [
-        { id: "sf", accountId: "from", month: "2026-01", balance: 10_000_000 },
-        { id: "st", accountId: "to", month: "2026-01", balance: 200_000 },
-      ],
       transfers: [
         {
           id: "t1",
@@ -616,11 +535,10 @@ describe("interpret", () => {
   test("Transfer の minFromBalance と minToBalance を併用すると両方の制約を満たす分だけ移動する", () => {
     const plan = basePlan({
       accounts: [
-        { id: "from", label: "invest", kind: "cash" },
+        { id: "from", label: "invest", kind: "cash", initialBalance: 1_030_000 },
         { id: "to", label: "cash", kind: "cash" },
       ],
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
-      snapshots: [{ id: "sf", accountId: "from", month: "2026-01", balance: 1_030_000 }],
       transfers: [
         {
           id: "t1",
@@ -657,13 +575,12 @@ describe("interpret", () => {
     expect(interpret(plan)).toEqual([]);
   });
 
-  test("複数 segment・口座・snapshot の混在", () => {
+  test("複数 segment・口座・初期残高の混在 (初期残高はエントリ列に現れない)", () => {
     const plan = basePlan({
       accounts: [
-        { id: "a1", label: "cash", kind: "cash" },
+        { id: "a1", label: "cash", kind: "cash", initialBalance: 10000 },
         { id: "a2", label: "invest", kind: "investment" },
       ],
-      snapshots: [{ id: "s1", accountId: "a1", month: "2026-01", balance: 10000 }],
       incomes: [
         {
           id: "i1",
@@ -683,13 +600,6 @@ describe("interpret", () => {
     });
     const entries = interpret(plan);
     expect(entries).toContainEqual({
-      month: "2026-01",
-      accountId: "a1",
-      sourceId: "s1",
-      sourceKind: "snapshot",
-      amount: 10000,
-    });
-    expect(entries).toContainEqual({
       month: "2026-02",
       accountId: "a1",
       sourceId: "i1",
@@ -703,17 +613,18 @@ describe("interpret", () => {
       sourceKind: "expense",
       amount: -200,
     });
-    expect(entries).toHaveLength(3);
+    expect(entries).toHaveLength(2);
   });
 });
 
 describe("investment interest", () => {
   test("annualRate が設定された投資口座は月初残高に対する利息を interest として出力する", () => {
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
-      accounts: [{ id: "inv", label: "投資", kind: "investment", investment: { annualRate: 0.12 } }],
-      snapshots: [{ id: "s1", accountId: "inv", month: "2026-01", balance: 10000 }],
+      accounts: [
+        { id: "inv", label: "投資", kind: "investment", investment: { annualRate: 0.12 }, initialBalance: 10000 },
+      ],
       incomes: [],
       expenses: [],
       events: [],
@@ -723,28 +634,24 @@ describe("investment interest", () => {
       grossSalaries: [],
     };
     const entries = interpret(plan);
-    // 2026-01: 月初 0 → 利息なし、snapshot で 10000 に上書き
-    // 2026-02: 月初 10000 → 利息 = 10000 * ((1.12)^(1/12) - 1)
-    // 2026-03: 月初 10000 + 先月利息 → 利息
+    // 2026-01 月初: initialBalance=10000 → 利息 = 10000 * r
+    // 2026-02 月初: 10000 + 1月分利息 → 利息
+    // 2026-03 月初: ↑ + 2月分利息 → 利息
     const r = monthlyCompoundRate(0.12);
-    const febExpected = Math.trunc(10000 * r);
+    const janExpected = Math.trunc(10000 * r);
+    const jan = entries.find((e) => e.month === "2026-01" && e.sourceKind === "interest");
+    expect(jan?.amount).toBe(janExpected);
     const feb = entries.find((e) => e.month === "2026-02" && e.sourceKind === "interest");
-    expect(feb?.amount).toBe(febExpected);
-    const mar = entries.find((e) => e.month === "2026-03" && e.sourceKind === "interest");
-    expect(mar?.amount).toBe(Math.trunc((10000 + febExpected) * r));
+    expect(feb?.amount).toBe(Math.trunc((10000 + janExpected) * r));
   });
 
   test("annualRate=0 や params 未設定なら利息は出ない", () => {
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-02" },
       accounts: [
-        { id: "a1", label: "投資0", kind: "investment", investment: { annualRate: 0 } },
-        { id: "a2", label: "投資未設定", kind: "investment" },
-      ],
-      snapshots: [
-        { id: "s1", accountId: "a1", month: "2026-01", balance: 10000 },
-        { id: "s2", accountId: "a2", month: "2026-01", balance: 10000 },
+        { id: "a1", label: "投資0", kind: "investment", investment: { annualRate: 0 }, initialBalance: 10000 },
+        { id: "a2", label: "投資未設定", kind: "investment", initialBalance: 10000 },
       ],
       incomes: [],
       expenses: [],
@@ -772,10 +679,9 @@ describe("loan expense", () => {
 
   test("loan expense は月ごとに元利均等の返済額を expense として出す", () => {
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
-      snapshots: [],
       incomes: [],
       expenses: [
         {
@@ -804,10 +710,9 @@ describe("loan expense", () => {
 
   test("loan expense はローン終了月以降は何も出さない", () => {
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2027-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
-      snapshots: [],
       incomes: [],
       expenses: [
         {
@@ -833,10 +738,9 @@ describe("loan expense", () => {
 
   test("loan expense は金利変更時に返済額が再計算される", () => {
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2027-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
-      snapshots: [],
       incomes: [],
       expenses: [
         {
@@ -873,11 +777,10 @@ describe("loan expense", () => {
 
   test("人物参照を含む segment は resolve されて計算される", () => {
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2030-12" },
       persons: [{ id: "p1", label: "子", birthMonth: "2020-04" }],
       accounts: [{ id: "a1", label: "cash", kind: "cash" }],
-      snapshots: [],
       incomes: [],
       expenses: [
         {
@@ -903,32 +806,6 @@ describe("loan expense", () => {
     const months = entries.map((e) => e.month);
     expect(months[0]).toBe("2028-04");
     expect(months[months.length - 1]).toBe("2030-03");
-  });
-
-  test("人物参照の解決不能な snapshot は除外される", () => {
-    const plan: Plan = {
-      schemaVersion: 2,
-      settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2030-12" },
-      persons: [],
-      grossSalaries: [],
-      accounts: [{ id: "a1", label: "cash", kind: "cash" }],
-      snapshots: [
-        { id: "s-ok", accountId: "a1", month: "2026-02", balance: 111 },
-        {
-          id: "s-dangling",
-          accountId: "a1",
-          month: { kind: "person-age", personId: "missing", age: 30, month: 1 },
-          balance: 999,
-        },
-      ],
-      incomes: [],
-      expenses: [],
-      events: [],
-      transfers: [],
-      categories: [],
-    };
-    const entries = interpret(plan);
-    expect(entries.map((e) => e.sourceId)).toEqual(["s-ok"]);
   });
 
   test("gross salary は毎月 salary_gross/social_insurance/income_tax エントリを発行する", () => {
@@ -1027,10 +904,9 @@ describe("loan expense", () => {
 
   test("loan を持つ expense は segments より loan 側が優先される", () => {
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
-      snapshots: [],
       incomes: [],
       expenses: [
         {
@@ -1057,10 +933,9 @@ describe("loan expense", () => {
 
   test("loan 期間全体が plan 開始より前なら返済は何も出ない", () => {
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2030-01", planEndMonth: "2030-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
-      snapshots: [],
       incomes: [],
       expenses: [
         {
@@ -1089,10 +964,9 @@ describe("loan expense", () => {
     // plan は 2026-01 開始なので、2025 年分の 12 ヶ月は balance だけ減らして表に出ず、
     // 2026-01..2026-12 の 12 ヶ月分のみ -100 として出力される。
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-12" },
       accounts: [{ id: "cash", label: "現金", kind: "cash" }],
-      snapshots: [],
       incomes: [],
       expenses: [
         {
@@ -1133,10 +1007,11 @@ describe("loan expense", () => {
 
   test("投資口座の annualRate が負でも interest が NaN を出さない", () => {
     const plan: Plan = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: { yearStartMonth: 1, planStartMonth: "2026-01", planEndMonth: "2026-03" },
-      accounts: [{ id: "inv", label: "投資", kind: "investment", investment: { annualRate: -0.1 } }],
-      snapshots: [{ id: "s1", accountId: "inv", month: "2026-01", balance: 10_000 }],
+      accounts: [
+        { id: "inv", label: "投資", kind: "investment", investment: { annualRate: -0.1 }, initialBalance: 10_000 },
+      ],
       incomes: [],
       expenses: [],
       events: [],

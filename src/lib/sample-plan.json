@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "settings": {
     "yearStartMonth": 4,
     "planStartMonth": "2026-04",
@@ -32,29 +32,17 @@
     {
       "id": "b02e0205-c760-4a6c-a212-28de193e0125",
       "label": "現金",
-      "kind": "cash"
+      "kind": "cash",
+      "initialBalance": 2000000
     },
     {
       "id": "d05ccafe-84fd-4a1f-a486-f5120aa477c8",
       "label": "投資",
       "kind": "investment",
+      "initialBalance": 300000,
       "investment": {
         "annualRate": 0.03
       }
-    }
-  ],
-  "snapshots": [
-    {
-      "id": "a8b25e51-a310-41a0-a0b8-25b7cc6d3ddd",
-      "accountId": "b02e0205-c760-4a6c-a212-28de193e0125",
-      "month": "2026-03",
-      "balance": 2000000
-    },
-    {
-      "id": "e7322262-6b67-4812-a8a8-d9c7b4dff653",
-      "accountId": "d05ccafe-84fd-4a1f-a486-f5120aa477c8",
-      "month": "2026-03",
-      "balance": 300000
     }
   ],
   "incomes": [
